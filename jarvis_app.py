@@ -55,7 +55,7 @@ with st.sidebar:
 
     st.write("---")
     voce_attiva = st.toggle("📢 Attiva Voce", value=True)
-    st.info("Versione: 4.5 - Stark Vision")
+    st.info("Versione: 4.6 - Stark Vision Clean")
 
 # Configurazione Istruzioni di Sistema
 if "Tony Stark" in personalita:
@@ -70,7 +70,6 @@ else:
     system_instruction = f"""Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata e disponibile online. 
     Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile."""
 
-# Utilizziamo il modello gemini-flash-latest che supporta anche le immagini (multimodale)
 model = genai.GenerativeModel(
     model_name='gemini-flash-latest',
     system_instruction=system_instruction
@@ -95,26 +94,32 @@ st.title(f"🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]")
 messaggi_correnti = st.session_state.chat_sessions[st.session_state.current_chat]
 
 if not messaggi_correnti:
-    messaggi_correnti.append({"role": "assistant", "content": f"Sistemi online in modalità '{personalita}'. Modulo visivo attivo. Come posso assisterti?"})
+    messaggi_correnti.append({"role": "assistant", "content": f"Sistemi online in modalità '{personalita}'. Come posso assisterti?"})
 
-# Visualizza i messaggi della chat attiva (gestendo sia testo che immagini salvate)
+# Visualizza i messaggi della chat attiva
 for message in messaggi_correnti:
     with st.chat_message(message["role"]):
         if "image" in message and message["image"] is not None:
             st.image(message["image"], width=300)
         st.markdown(message["content"])
 
-# Selettore file immagine direttamente sopra la chat
-uploaded_file = st.file_uploader("📷 Aggiungi un'immagine da analizzare (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
+# --- BARRA DI INPUT INFERIORE COMPATTA CON ALLEGATO ---
+# Usiamo colonne in basso per affiancare il pulsante file e la chat o un expander pulito
+with st.container():
+    col_input, col_file = st.columns([6, 1])
+    
+    with col_file:
+        # Un piccolo pulsante o selettore per allegare l'immagine vicino alla chat
+        uploaded_file = st.file_uploader("➕ Allega", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
 
-# Input dell'utente
-if prompt := st.chat_input("Scrivi un comando o descrivi l'immagine..."):
-    # Gestione dell'immagine caricata
+    with col_input:
+        prompt = st.chat_input("Scrivi un comando o descrivi l'immagine...")
+
+if prompt:
     img_pil = None
     if uploaded_file is not None:
         img_pil = Image.open(uploaded_file)
 
-    # Aggiunge il messaggio utente alla cronologia
     messaggi_correnti.append({"role": "user", "content": prompt, "image": img_pil})
     
     with st.chat_message("user"):
@@ -124,13 +129,11 @@ if prompt := st.chat_input("Scrivi un comando o descrivi l'immagine..."):
 
     with st.chat_message("assistant"):
         with st.spinner("Analisi in corso..."):
-            # Prepara i contenuti da inviare a Gemini (supporta testo + immagine)
             contenuti_invio = []
             if img_pil is not None:
                 contenuti_invio.append(img_pil)
             contenuti_invio.append(prompt)
 
-            # Genera la risposta
             response = model.generate_content(contenuti_invio)
             st.markdown(response.text)
             
