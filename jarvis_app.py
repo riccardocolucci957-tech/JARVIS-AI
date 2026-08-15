@@ -3,86 +3,88 @@ import google.generativeai as genai
 import time
 from datetime import datetime
 
-# Configurazione della pagina
-st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="centered")
+# Configurazione stile CSS (Tema Neon/Dark)
+st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
 
-# Recupero API Key dai Secrets
+st.markdown("""
+    <style>
+    .stApp { background-color: #0e1117; }
+    h1 { color: #00ccff; text-align: center; font-family: 'Courier New', monospace; }
+    .stChatMessage { border: 1px solid #00ccff; border-radius: 10px; background-color: #1a1a1a; }
+    </style>
+""", unsafe_allow_html=True)
+
+# Recupero API Key
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# Configurazione dell'IA
-oggi = datetime.now().strftime("%d/%m/%Y")
-system_instruction = f"""
-Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata e disponibile online.
-Oggi è il giorno {oggi}. Rispondi sempre in italiano in modo professionale e disponibile.
-"""
+model = genai.GenerativeModel('gemini-flash-latest')
 
-model = genai.GenerativeModel(
-    model_name='gemini-flash-latest',
-    system_instruction=system_instruction
-)
+# --- SIDEBAR E INDICATORI ---
+with st.sidebar:
+    st.image("https://upload.wikimedia.org/wikipedia/commons/3/36/Marvel_Studios_logo.svg", width=150)
+    st.title("SISTEMA JARVIS")
+    st.write("---")
+    st.subheader("Stato Interno")
+    st.progress(85, text="Stato Core IA")
+    st.success("Connessione: STABILE")
+    voce_attiva = st.toggle("📢 Attiva Voce", value=True)
+    st.write("---")
+    st.info("Versione: 4.0.2 - Stark Enterprise")
 
-# --- CONTROLLO AUDIO (MEGAFONO) IN ALTO A DESTRA ---
-col1, col2 = st.columns([4, 1])
-with col1:
-    st.title("🤖 J.A.R.V.I.S.")
-with col2:
-    # Toggle con l'icona del megafono
-    voce_attiva = st.toggle("📢 Voce", value=True)
-
-# --- FUNZIONE PER LA VOCE (TEXT-TO-SPEECH DEL BROWSER) ---
+# --- FUNZIONI ---
 def parla_testo(testo):
     if voce_attiva:
-        # Puliamo il testo da caratteri che potrebbero rompere lo script JS
         testo_pulito = testo.replace('"', "'").replace('\n', ' ')
-        js_code = f"""
-        <script>
+        js_code = f"""<script>
             const synth = window.speechSynthesis;
             const utterThis = new SpeechSynthesisUtterance("{testo_pulito}");
             utterThis.lang = 'it-IT';
             synth.speak(utterThis);
-        </script>
-        """
+        </script>"""
         st.components.v1.html(js_code, height=0, width=0)
 
-# --- FUNZIONE PER L'ANIMAZIONE DI ENTRATA ---
-def animated_welcome():
-    welcome_placeholder = st.empty()
-    full_text = "Inizializzazione sistemi J.A.R.V.I.S. v.3.7...\n\nConnessione al cloud stabilita.\n\nSistemi online. Come posso aiutarti oggi?"
-    
-    current_text = ""
-    for char in full_text:
-        current_text += char
-        welcome_placeholder.markdown(f"<pre style='color: #00ccff; font-family: monospace;'>{current_text}</pre>", unsafe_allow_html=True)
-        time.sleep(0.03)
-        
-    time.sleep(0.5)
-    welcome_placeholder.empty()
+# Titolo e Animazione
+if "init" not in st.session_state:
+    st.title("🤖 J.A.R.V.I.S.")
+    ph = st.empty()
+    intro = "Inizializzazione core... Connessione neurale... Sistemi online."
+    for i in range(len(intro)+1):
+        ph.markdown(f"<h3 style='color:#00ccff'>{intro[:i]}</h3>", unsafe_allow_html=True)
+        time.sleep(0.05)
+    st.session_state.init = True
+    ph.empty()
 
-# Inizializzazione della chat e gestione primo avvio
+st.title("🤖 J.A.R.V.I.S.")
+
 if "messages" not in st.session_state:
-    st.session_state.messages = []
-    animated_welcome()
-    messaggio_iniziale = "Sistemi online. Come posso aiutarti oggi?"
-    st.session_state.messages.append({"role": "assistant", "content": messaggio_iniziale})
-    parla_testo(messaggio_iniziale)
+    st.session_state.messages = [{"role": "assistant", "content": "Sistemi online. Pronto all'uso."}]
 
-chat = model.start_chat(history=[])
+# Bottoni Comandi Rapidi
+col1, col2, col3 = st.columns(3)
+with col1:
+    if st.button("Diagnostica"): prompt_rapido = "Fai una diagnostica del sistema."
+with col2:
+    if st.button("Meteo"): prompt_rapido = "Com'è il tempo oggi?"
+with col3:
+    if st.button("Curiosità"): prompt_rapido = "Raccontami una curiosità tecnologica."
 
-# Visualizza tutti i messaggi
+# Gestione Chat
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Casella di input dell'utente
-if prompt := st.chat_input("Scrivi un comando..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
+def elabora_risposta(user_input):
+    st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
-        st.markdown(prompt)
-
+        st.markdown(user_input)
     with st.chat_message("assistant"):
-        response = chat.send_message(prompt)
+        response = model.generate_content(user_input)
         st.markdown(response.text)
         st.session_state.messages.append({"role": "assistant", "content": response.text})
-        # Parla solo se il megafono è attivo
         parla_testo(response.text)
+
+if prompt := st.chat_input("Inserisci comando..."):
+    elabora_risposta(prompt)
+elif 'prompt_rapido' in locals():
+    elabora_risposta(prompt_rapido)
