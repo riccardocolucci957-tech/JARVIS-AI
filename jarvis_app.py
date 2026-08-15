@@ -8,7 +8,7 @@ import io
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
 
-# Stili CSS avanzati con animazioni fluide in stile JARVIS/HUD
+# Stili CSS avanzati (ripristinata la visibilità dell'header per non perdere il tasto di apertura/chiusura sidebar)
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -40,7 +40,8 @@ st.markdown("""
         animation: fadeIn 0.4s ease-out;
     }
 
-    #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
+    #MainMenu {visibility: hidden;} 
+    footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
