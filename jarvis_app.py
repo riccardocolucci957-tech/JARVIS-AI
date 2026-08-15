@@ -1,5 +1,6 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from datetime import datetime
 from PIL import Image
 
@@ -15,9 +16,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Recupero API Key
+# Recupero API Key e inizializzazione del nuovo client Google GenAI
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-genai.configure(api_key=GOOGLE_API_KEY)
+client = genai.Client(api_key=GOOGLE_API_KEY)
 
 # --- STATO DELLA SESSIONE ---
 if "chat_sessions" not in st.session_state:
@@ -54,9 +55,6 @@ elif "Emergenza" in personalita:
     system_instruction = f"Sei J.A.R.V.I.S. in modalità Protocollo di Emergenza. Rispondi in italiano in modo sintetico, freddo e militare. Oggi è il {oggi}."
 else:
     system_instruction = f"Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata. Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile."
-
-# MODELLO CORRETTO SENZA IL PREFISSO 'models/'
-model = genai.GenerativeModel(model_name='gemini-1.5-flash', system_instruction=system_instruction)
 
 # --- FUNZIONE VOCE (TTS) ---
 def parla_testo(testo):
@@ -108,8 +106,15 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Elaborazione in corso..."):
             try:
-                contenuti_invio = [img_pil, prompt] if img_pil else [prompt]
-                response = model.generate_content(contenuti_invio)
+                contenuti = [img_pil, prompt] if img_pil else [prompt]
+                # Chiamata pulita con la nuova libreria google-genai
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=contenuti,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction
+                    )
+                )
                 ai_response = response.text
             except Exception as e:
                 ai_response = f"⚠️ Errore API: {str(e)}"
