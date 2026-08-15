@@ -10,7 +10,7 @@ st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
-    h1 { color: #00ccff; font-family: 'Courier New', monospace; }
+    h1 { color: #00ccff; text-align: center; font-family: 'Courier New', monospace; }
     .stChatMessage { border: 1px solid #00ccff; border-radius: 10px; background-color: #1a1a1a; }
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
@@ -32,50 +32,26 @@ oggi = datetime.now().strftime("%d/%m/%Y")
 
 with st.sidebar:
     st.title("⚙️ Pannello di Controllo")
-    
-    personalita = st.selectbox(
-        "Protocollo di Personalità",
-        ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"]
-    )
-    
+    personalita = st.selectbox("Protocollo di Personalità", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
     st.write("---")
     st.title("💬 Cronologia Chat")
-    
     if st.button("➕ Nuova Chat", use_container_width=True):
         nuova_chiave = f"Chat {len(st.session_state.chat_sessions) + 1}"
         st.session_state.chat_sessions[nuova_chiave] = []
         st.session_state.current_chat = nuova_chiave
         st.rerun()
-
     st.write("---")
     for nome_chat in list(st.session_state.chat_sessions.keys()):
         if st.button(nome_chat, use_container_width=True, key=f"btn_{nome_chat}"):
             st.session_state.current_chat = nome_chat
             st.rerun()
-
     st.write("---")
     voce_attiva = st.toggle("📢 Attiva Voce", value=True)
-    st.info("Versione: 4.6 - Stark Vision Clean")
+    st.info("Versione: 4.7 - Stark Popover")
 
-# Configurazione Istruzioni di Sistema
-if "Tony Stark" in personalita:
-    system_instruction = f"""Sei J.A.R.V.I.S., l'intelligenza artificiale di Tony Stark. 
-    Rispondi in italiano con un tono sarcastico, ironico, brillante ma estremamente efficiente. 
-    Oggi è il {oggi}."""
-elif "Emergenza" in personalita:
-    system_instruction = f"""Sei J.A.R.V.I.S. in modalità Protocollo di Emergenza. 
-    Rispondi in italiano in modo estremamente sintetico, freddo, militare e diretto al punto. 
-    Oggi è il {oggi}."""
-else:
-    system_instruction = f"""Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata e disponibile online. 
-    Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile."""
+# Configurazione Modello
+model = genai.GenerativeModel(model_name='gemini-flash-latest')
 
-model = genai.GenerativeModel(
-    model_name='gemini-flash-latest',
-    system_instruction=system_instruction
-)
-
-# Funzione sintesi vocale
 def parla_testo(testo):
     if voce_attiva:
         testo_pulito = testo.replace('"', "'").replace('\n', ' ')
@@ -87,37 +63,31 @@ def parla_testo(testo):
         </script>"""
         st.components.v1.html(js_code, height=0, width=0)
 
-# Titolo principale
 st.title(f"🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]")
 
-# Recupera i messaggi della chat corrente
 messaggi_correnti = st.session_state.chat_sessions[st.session_state.current_chat]
-
-if not messaggi_correnti:
-    messaggi_correnti.append({"role": "assistant", "content": f"Sistemi online in modalità '{personalita}'. Come posso assisterti?"})
-
-# Visualizza i messaggi della chat attiva
 for message in messaggi_correnti:
     with st.chat_message(message["role"]):
         if "image" in message and message["image"] is not None:
             st.image(message["image"], width=300)
         st.markdown(message["content"])
 
-# --- BARRA DI INPUT INFERIORE COMPATTA CON ALLEGATO ---
-# Usiamo colonne in basso per affiancare il pulsante file e la chat o un expander pulito
-with st.container():
-    col_input, col_file = st.columns([6, 1])
-    
-    with col_file:
-        # Un piccolo pulsante o selettore per allegare l'immagine vicino alla chat
-        uploaded_file = st.file_uploader("➕ Allega", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+# --- INPUT AREA CON POPOVER PER IMMAGINE ---
+# Creiamo un contenitore per allineare tutto
+col_button, col_input = st.columns([1, 10])
 
-    with col_input:
-        prompt = st.chat_input("Scrivi un comando o descrivi l'immagine...")
+with col_button:
+    # Il Popover che funge da tendina
+    with st.popover("➕"):
+        uploaded_file = st.file_uploader("Importa immagine", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+
+with col_input:
+    prompt = st.chat_input("Scrivi un comando...")
 
 if prompt:
     img_pil = None
-    if uploaded_file is not None:
+    # Verifica se l'immagine è stata caricata nel popover
+    if 'uploaded_file' in locals() and uploaded_file is not None:
         img_pil = Image.open(uploaded_file)
 
     messaggi_correnti.append({"role": "user", "content": prompt, "image": img_pil})
@@ -128,16 +98,10 @@ if prompt:
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Analisi in corso..."):
-            contenuti_invio = []
-            if img_pil is not None:
-                contenuti_invio.append(img_pil)
-            contenuti_invio.append(prompt)
-
-            response = model.generate_content(contenuti_invio)
-            st.markdown(response.text)
-            
-            messaggi_correnti.append({"role": "assistant", "content": response.text, "image": None})
-            parla_testo(response.text)
-            
+        contenuti_invio = [img_pil, prompt] if img_pil else [prompt]
+        response = model.generate_content(contenuti_invio)
+        st.markdown(response.text)
+        messaggi_correnti.append({"role": "assistant", "content": response.text, "image": None})
+        parla_testo(response.text)
     st.rerun()
+    
