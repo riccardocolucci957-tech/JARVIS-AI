@@ -55,7 +55,8 @@ elif "Emergenza" in personalita:
 else:
     system_instruction = f"Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata. Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile."
 
-model = genai.GenerativeModel(model_name='gemini-flash-latest', system_instruction=system_instruction)
+# Usiamo gemini-1.5-flash che è stabile e supporta perfettamente immagini e testo
+model = genai.GenerativeModel(model_name='gemini-1.5-flash', system_instruction=system_instruction)
 
 # --- FUNZIONE VOCE (TTS) ---
 def parla_testo(testo):
@@ -95,7 +96,6 @@ if prompt:
     img_pil = None
     if uploaded_file:
         img_pil = Image.open(uploaded_file)
-        # Ridimensiona l'immagine per evitare di sovraccaricare i limiti di token dell'API
         img_pil.thumbnail((1024, 1024))
     
     messaggi_correnti.append({"role": "user", "content": prompt, "image": img_pil})
@@ -112,7 +112,7 @@ if prompt:
                 response = model.generate_content(contenuti_invio)
                 ai_response = response.text
             except Exception as e:
-                ai_response = "⚠️ Attenzione: Limite di richieste superato o errore temporaneo dell'API. Attendi qualche secondo prima di inviare un altro messaggio."
+                ai_response = f"⚠️ Errore API: {str(e)}"
 
         st.markdown(ai_response)
         messaggi_correnti.append({"role": "assistant", "content": ai_response})
