@@ -22,43 +22,51 @@ model = genai.GenerativeModel(
     system_instruction=system_instruction
 )
 
+# --- CONTROLLO AUDIO (MEGAFONO) IN ALTO A DESTRA ---
+col1, col2 = st.columns([4, 1])
+with col1:
+    st.title("🤖 J.A.R.V.I.S.")
+with col2:
+    # Toggle con l'icona del megafono
+    voce_attiva = st.toggle("📢 Voce", value=True)
+
+# --- FUNZIONE PER LA VOCE (TEXT-TO-SPEECH DEL BROWSER) ---
+def parla_testo(testo):
+    if voce_attiva:
+        # Puliamo il testo da caratteri che potrebbero rompere lo script JS
+        testo_pulito = testo.replace('"', "'").replace('\n', ' ')
+        js_code = f"""
+        <script>
+            const synth = window.speechSynthesis;
+            const utterThis = new SpeechSynthesisUtterance("{testo_pulito}");
+            utterThis.lang = 'it-IT';
+            synth.speak(utterThis);
+        </script>
+        """
+        st.components.v1.html(js_code, height=0, width=0)
+
 # --- FUNZIONE PER L'ANIMAZIONE DI ENTRATA ---
 def animated_welcome():
-    # Contenitore vuoto iniziale
     welcome_placeholder = st.empty()
-    # Testo completo dell'animazione
     full_text = "Inizializzazione sistemi J.A.R.V.I.S. v.3.7...\n\nConnessione al cloud stabilita.\n\nSistemi online. Come posso aiutarti oggi?"
     
     current_text = ""
-    # Ciclo per l'effetto "macchina da scrivere"
     for char in full_text:
         current_text += char
-        # Aggiorna il contenuto del contenitore con codice formattato (monospaced)
         welcome_placeholder.markdown(f"<pre style='color: #00ccff; font-family: monospace;'>{current_text}</pre>", unsafe_allow_html=True)
-        # Velocità dell'animazione (in secondi)
         time.sleep(0.03)
         
-    # Aggiunge un piccolo ritardo alla fine prima di passare alla chat vera e propria
     time.sleep(0.5)
-    # Rimuove l'animazione per far posto alla chat
     welcome_placeholder.empty()
 
-# --- FINE FUNZIONE ANIMAZIONE ---
-
-
-# Titolo principale
-st.title("🤖 J.A.R.V.I.S.")
-
-# Inizializzazione della chat e GESTIONE AVVIO (con animazione)
+# Inizializzazione della chat e gestione primo avvio
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    # Esegui l'animazione di entrata solo al primo caricamento
     animated_welcome()
-    # Imposta il primo messaggio di benvenuto visibile nella chat
-    st.session_state.messages.append({"role": "assistant", "content": "Sistemi online. Come posso aiutarti oggi?"})
+    messaggio_iniziale = "Sistemi online. Come posso aiutarti oggi?"
+    st.session_state.messages.append({"role": "assistant", "content": messaggio_iniziale})
+    parla_testo(messaggio_iniziale)
 
-
-# Caricamento dello storico della chat (necessario per far funzionare l'app dopo l'animazione)
 chat = model.start_chat(history=[])
 
 # Visualizza tutti i messaggi
@@ -68,14 +76,13 @@ for message in st.session_state.messages:
 
 # Casella di input dell'utente
 if prompt := st.chat_input("Scrivi un comando..."):
-    # Aggiunge e visualizza il messaggio dell'utente
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Ottiene e visualizza la risposta dell'IA
     with st.chat_message("assistant"):
         response = chat.send_message(prompt)
         st.markdown(response.text)
-        # Aggiunge la risposta alla sessione
         st.session_state.messages.append({"role": "assistant", "content": response.text})
+        # Parla solo se il megafono è attivo
+        parla_testo(response.text)
