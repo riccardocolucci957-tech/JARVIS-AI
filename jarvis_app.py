@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import time
 from datetime import datetime
+from PIL import Image
 
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
@@ -11,7 +12,6 @@ st.markdown("""
     .stApp { background-color: #0e1117; }
     h1 { color: #00ccff; font-family: 'Courier New', monospace; }
     .stChatMessage { border: 1px solid #00ccff; border-radius: 10px; background-color: #1a1a1a; }
-    /* Nasconde il menu in alto a destra di Streamlit e l'icona di GitHub */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
@@ -33,7 +33,6 @@ oggi = datetime.now().strftime("%d/%m/%Y")
 with st.sidebar:
     st.title("⚙️ Pannello di Controllo")
     
-    # Selettore di Personalità
     personalita = st.selectbox(
         "Protocollo di Personalità",
         ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"]
@@ -56,9 +55,9 @@ with st.sidebar:
 
     st.write("---")
     voce_attiva = st.toggle("📢 Attiva Voce", value=True)
-    st.info("Versione: 4.4 - Stark OS")
+    st.info("Versione: 4.5 - Stark Vision")
 
-# Imposta le istruzioni di sistema in base alla personalità scelta
+# Configurazione Istruzioni di Sistema
 if "Tony Stark" in personalita:
     system_instruction = f"""Sei J.A.R.V.I.S., l'intelligenza artificiale di Tony Stark. 
     Rispondi in italiano con un tono sarcastico, ironico, brillante ma estremamente efficiente. 
@@ -69,8 +68,9 @@ elif "Emergenza" in personalita:
     Oggi è il {oggi}."""
 else:
     system_instruction = f"""Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata e disponibile online. 
-    Oggi è il {oggi} Rispondi sempre in italiano in modo professionale e disponibile."""
+    Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile."""
 
+# Utilizziamo il modello gemini-flash-latest che supporta anche le immagini (multimodale)
 model = genai.GenerativeModel(
     model_name='gemini-flash-latest',
     system_instruction=system_instruction
@@ -95,25 +95,46 @@ st.title(f"🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]")
 messaggi_correnti = st.session_state.chat_sessions[st.session_state.current_chat]
 
 if not messaggi_correnti:
-    messaggi_correnti.append({"role": "assistant", "content": f"Sistemi online in modalità '{personalita}'. Come posso assisterti?"})
+    messaggi_correnti.append({"role": "assistant", "content": f"Sistemi online in modalità '{personalita}'. Modulo visivo attivo. Come posso assisterti?"})
 
-# Visualizza i messaggi della chat attiva
+# Visualizza i messaggi della chat attiva (gestendo sia testo che immagini salvate)
 for message in messaggi_correnti:
     with st.chat_message(message["role"]):
+        if "image" in message and message["image"] is not None:
+            st.image(message["image"], width=300)
         st.markdown(message["content"])
 
+# Selettore file immagine direttamente sopra la chat
+uploaded_file = st.file_uploader("📷 Aggiungi un'immagine da analizzare (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
+
 # Input dell'utente
-if prompt := st.chat_input("Scrivi un comando..."):
-    messaggi_correnti.append({"role": "user", "content": prompt})
+if prompt := st.chat_input("Scrivi un comando o descrivi l'immagine..."):
+    # Gestione dell'immagine caricata
+    img_pil = None
+    if uploaded_file is not None:
+        img_pil = Image.open(uploaded_file)
+
+    # Aggiunge il messaggio utente alla cronologia
+    messaggi_correnti.append({"role": "user", "content": prompt, "image": img_pil})
+    
     with st.chat_message("user"):
+        if img_pil is not None:
+            st.image(img_pil, width=300)
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        chat_history_gemini = [{"role": m["role"], "parts": [m["content"]]} for m in messaggi_correnti[:-1]]
-        chat = model.start_chat(history=chat_history_gemini)
-        
-        response = chat.send_message(prompt)
-        st.markdown(response.text)
-        messaggi_correnti.append({"role": "assistant", "content": response.text})
-        parla_testo(response.text)
+        with st.spinner("Analisi in corso..."):
+            # Prepara i contenuti da inviare a Gemini (supporta testo + immagine)
+            contenuti_invio = []
+            if img_pil is not None:
+                contenuti_invio.append(img_pil)
+            contenuti_invio.append(prompt)
+
+            # Genera la risposta
+            response = model.generate_content(contenuti_invio)
+            st.markdown(response.text)
+            
+            messaggi_correnti.append({"role": "assistant", "content": response.text, "image": None})
+            parla_testo(response.text)
+            
     st.rerun()
