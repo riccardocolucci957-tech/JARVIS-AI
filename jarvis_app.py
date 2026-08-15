@@ -11,6 +11,10 @@ st.markdown("""
     .stApp { background-color: #0e1117; }
     h1 { color: #00ccff; font-family: 'Courier New', monospace; }
     .stChatMessage { border: 1px solid #00ccff; border-radius: 10px; background-color: #1a1a1a; }
+    /* Nasconde il menu in alto a destra di Streamlit e l'icona di GitHub */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -52,7 +56,7 @@ with st.sidebar:
 
     st.write("---")
     voce_attiva = st.toggle("📢 Attiva Voce", value=True)
-    st.info("Versione: 4.3 - Stark OS")
+    st.info("Versione: 4.4 - Stark OS")
 
 # Imposta le istruzioni di sistema in base alla personalità scelta
 if "Tony Stark" in personalita:
@@ -65,7 +69,7 @@ elif "Emergenza" in personalita:
     Oggi è il {oggi}."""
 else:
     system_instruction = f"""Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata e disponibile online. 
-    Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile."""
+    Oggi è il {oggi} Rispondi sempre in italiano in modo professionale e disponibile."""
 
 model = genai.GenerativeModel(
     model_name='gemini-flash-latest',
