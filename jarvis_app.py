@@ -27,12 +27,13 @@ if "current_chat" not in st.session_state:
 if "voce_attiva" not in st.session_state:
     st.session_state.voce_attiva = True
 
+oggi = datetime.now().strftime("%d/%m/%Y")
+
 # --- SIDEBAR ---
 with st.sidebar:
     st.title("⚙️ Pannello di Controllo")
     personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
     st.write("---")
-    # Toggle per la voce che salva lo stato
     st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
     st.write("---")
     st.title("💬 Cronologia")
@@ -42,51 +43,70 @@ with st.sidebar:
         st.session_state.current_chat = nuova_chiave
         st.rerun()
     for nome_chat in list(st.session_state.chat_sessions.keys()):
-        if st.button(nome_chat, use_container_width=True):
+        if st.button(nome_chat, use_container_width=True, key=f"btn_{nome_chat}"):
             st.session_state.current_chat = nome_chat
             st.rerun()
 
-# --- MODELLO ---
-model = genai.GenerativeModel(model_name='gemini-flash-latest')
+# --- CONFIGURAZIONE PERSONALITÀ ---
+if "Tony Stark" in personalita:
+    system_instruction = f"Sei J.A.R.V.I.S., l'intelligenza artificiale di Tony Stark. Rispondi in italiano con un tono sarcastico, ironico, brillante ma efficiente. Oggi è il {oggi}."
+elif "Emergenza" in personalita:
+    system_instruction = f"Sei J.A.R.V.I.S. in modalità Protocollo di Emergenza. Rispondi in italiano in modo sintetico, freddo e militare. Oggi è il {oggi}."
+else:
+    system_instruction = f"Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata. Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile."
 
+model = genai.GenerativeModel(model_name='gemini-flash-latest', system_instruction=system_instruction)
+
+# --- FUNZIONE VOCE (TTS) ---
 def parla_testo(testo):
     if st.session_state.voce_attiva:
         testo_pulito = testo.replace('"', "'").replace('\n', ' ')
-        js_code = f"""<script>
+        js_code = f"""
+        <script>
             const synth = window.speechSynthesis;
             const utterThis = new SpeechSynthesisUtterance("{testo_pulito}");
             utterThis.lang = 'it-IT';
             synth.speak(utterThis);
-        </script>"""
+        </script>
+        """
         st.components.v1.html(js_code, height=0, width=0)
 
+# --- INTERFACCIA PRINCIPALE ---
 st.title(f"🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]")
 
 messaggi_correnti = st.session_state.chat_sessions[st.session_state.current_chat]
 for message in messaggi_correnti:
     with st.chat_message(message["role"]):
-        if "image" in message and message["image"]: st.image(message["image"], width=300)
+        if "image" in message and message["image"]: 
+            st.image(message["image"], width=300)
         st.markdown(message["content"])
 
-# --- INPUT AREA ---
+# --- INPUT AREA CON POPOVER PER IMMAGINE (+) ---
 col_button, col_input = st.columns([1, 10])
+
 with col_button:
     with st.popover("➕"):
-        uploaded_file = st.file_uploader("Importa", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+        uploaded_file = st.file_uploader("Importa immagine", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+
 with col_input:
     prompt = st.chat_input("Scrivi un comando...")
 
 if prompt:
     img_pil = Image.open(uploaded_file) if uploaded_file else None
+    
     messaggi_correnti.append({"role": "user", "content": prompt, "image": img_pil})
+    
     with st.chat_message("user"):
-        if img_pil: st.image(img_pil, width=300)
+        if img_pil: 
+            st.image(img_pil, width=300)
         st.markdown(prompt)
+        
     with st.chat_message("assistant"):
-        response = model.generate_content([img_pil, prompt] if img_pil else [prompt])
+        contenuti_invio = [img_pil, prompt] if img_pil else [prompt]
+        response = model.generate_content(contenuti_invio)
         st.markdown(response.text)
         messaggi_correnti.append({"role": "assistant", "content": response.text})
         parla_testo(response.text)
+        
     st.rerun()
-    
     
