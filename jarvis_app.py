@@ -6,7 +6,7 @@ import base64
 import io
 
 # Configurazione della pagina
-st.set_page_config(page_title="JARVIS AI (Vision)", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
 
 st.markdown("""
     <style>
@@ -17,153 +17,89 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Recupero API Key di Groq dai secrets
+# Recupero API Key protetta
 try:
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-    client = Groq(api_key=GROQ_API_KEY)
-except KeyError:
-    st.error("⚠️ Errore: GROQ_API_KEY non trovata nei secrets di Streamlit. Configurala nelle impostazioni.")
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+except:
+    st.error("⚠️ Configura GROQ_API_KEY nei Secrets di Streamlit.")
     st.stop()
 
-# --- STATO DELLA SESSIONE ---
+# Inizializzazione sessione
 if "chat_sessions" not in st.session_state:
-    st.session_state.chat_sessions = {"Chat Principale": []}
+    st.session_state.chat_sessions = {"Chat Principale": [], "Analisi Tecnica": [], "Codice e Script": []}
 if "current_chat" not in st.session_state:
     st.session_state.current_chat = "Chat Principale"
 if "voce_attiva" not in st.session_state:
     st.session_state.voce_attiva = True
-if "uploaded_img_bytes" not in st.session_state:
-    st.session_state.uploaded_img_bytes = None
 
 oggi = datetime.now().strftime("%d/%m/%Y")
 
-# --- FUNZIONI DI SUPPORTO ---
-def image_to_base64_data_uri(img_pil):
-    """Converte un'immagine PIL in una data URI base64 per l'API Vision."""
-    buffered = io.BytesIO()
-    # Riduciamo la dimensione per l'API (massimo 4MB spesso)
-    img_pil.thumbnail((1024, 1024))
-    img_pil.save(buffered, format=img_pil.format if img_pil.format else 'PNG')
-    img_bytes = buffered.getvalue()
-    base64_encoded = base64.b64encode(img_bytes).decode('utf-8')
-    # Determina il mime type
-    mime_type = f"image/{img_pil.format.lower() if img_pil.format else 'png'}"
-    return f"data:{mime_type};base64,{base64_encoded}"
-
-# --- SIDEBAR ---
+# --- SIDEBAR BLOCCATA ---
 with st.sidebar:
     st.title("⚙️ Pannello di Controllo")
     personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
-    st.write("---")
     st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
     st.write("---")
-    st.title("💬 Cronologia")
-    if st.button("➕ Nuova Chat", use_container_width=True):
-        nuova_chiave = f"Chat {len(st.session_state.chat_sessions) + 1}"
-        st.session_state.chat_sessions[nuova_chiave] = []
-        st.session_state.current_chat = nuova_chiave
+    st.title("💬 Canali Fissi")
+    
+    canali_fissi = ["Chat Principale", "Analisi Tecnica", "Codice e Script"]
+    scelta = st.radio("Seleziona canale:", canali_fissi, index=canali_fissi.index(st.session_state.current_chat))
+    
+    if scelta != st.session_state.current_chat:
+        st.session_state.current_chat = scelta
         st.rerun()
-    for nome_chat in list(st.session_state.chat_sessions.keys()):
-        if st.button(nome_chat, use_container_width=True, key=f"btn_{nome_chat}"):
-            st.session_state.current_chat = nome_chat
-            st.rerun()
+    st.write("---")
+    st.caption("Accesso amministratore richiesto per modifiche.")
 
-# --- CONFIGURAZIONE PERSONALITÀ ---
+# --- LOGICA PERSONA ---
 if "Tony Stark" in personalita:
-    system_content = f"Sei J.A.R.V.I.S., l'intelligenza artificiale di Tony Stark. Rispondi in italiano con un tono sarcastico, ironico, brillante ma efficiente. Oggi è il {oggi}. Riceverai input testuali e/o visivi."
+    system_content = f"Sei J.A.R.V.I.S., AI di Tony Stark. Rispondi in italiano con tono sarcastico, geniale. Data: {oggi}."
 elif "Emergenza" in personalita:
-    system_content = f"Sei J.A.R.V.I.S. in modalità Protocollo di Emergenza. Rispondi in italiano in modo sintetico, freddo e militare. Oggi è il {oggi}. Riceverai input testuali e/o visivi."
+    system_content = f"J.A.R.V.I.S. Protocollo Emergenza. Rispondi in modo sintetico, freddo, militare. Data: {oggi}."
 else:
-    system_content = f"Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata. Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile. Riceverai input testuali e/o visivi."
+    system_content = f"J.A.R.V.I.S., IA avanzata. Rispondi in modo professionale, preciso e disponibile. Data: {oggi}."
 
-# --- FUNZIONE VOCE (TTS) ---
+# --- FUNZIONE VOCE ---
 def parla_testo(testo):
     if st.session_state.voce_attiva:
-        testo_pulito = testo.replace('"', "'").replace('\n', ' ')
-        js_code = f"""
-        <script>
-            const synth = window.speechSynthesis;
-            const utterThis = new SpeechSynthesisUtterance("{testo_pulito}");
-            utterThis.lang = 'it-IT';
-            synth.speak(utterThis);
-        </script>
-        """
-        st.components.v1.html(js_code, height=0, width=0)
+        t = testo.replace('"', "'").replace('\n', ' ')
+        st.components.v1.html(f'<script>const s=window.speechSynthesis; const u=new SpeechSynthesisUtterance("{t}"); u.lang="it-IT"; s.speak(u);</script>', height=0)
 
-# --- INTERFACCIA PRINCIPALE ---
+# --- CHAT UI ---
 st.title(f"🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]")
+messaggi = st.session_state.chat_sessions[st.session_state.current_chat]
 
-messaggi_correnti = st.session_state.chat_sessions[st.session_state.current_chat]
+for msg in messaggi:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-# Visualizza la cronologia della chat (senza immagini caricate)
-for message in messaggi_correnti:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# --- INPUT AREA CON POPOVER PER IMMAGINE (+) ---
-col_button, col_input = st.columns([1, 10])
-
-with col_button:
-    with st.popover("➕"):
-        uploaded_file = st.file_uploader("Importa immagine", type=["png", "jpg", "jpeg"])
-        if uploaded_file:
-            st.session_state.uploaded_img_bytes = uploaded_file.getvalue()
-            st.image(st.session_state.uploaded_img_bytes, width=150, caption="Immagine caricata")
-            if st.button("Rimuovi immagine"):
-                st.session_state.uploaded_img_bytes = None
-                st.rerun()
-
-with col_input:
-    prompt = st.chat_input("Scrivi un comando... (puoi allegare una foto a sinistra)")
+# Input + Foto
+col1, col2 = st.columns([1, 10])
+with col1:
+    up = st.file_uploader("➕", type=["png", "jpg"])
+with col2:
+    prompt = st.chat_input("Comando...")
 
 if prompt:
-    # 1. Aggiungi il prompt dell'utente alla cronologia
-    messaggi_correnti.append({"role": "user", "content": prompt})
+    messaggi.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-        # Se c'è un'immagine, mostrala nell'input
-        if st.session_state.uploaded_img_bytes:
-            st.image(st.session_state.uploaded_img_bytes, width=300)
+        if up: st.image(up, width=200)
 
-    # 2. Prepara il payload per l'IA
-    messages_payload = [{"role": "system", "content": system_content}]
-
-    # Aggiungi l'immagine al payload se è stata caricata
-    image_base64_uri = None
-    if st.session_state.uploaded_img_bytes:
-        img_pil = Image.open(io.BytesIO(st.session_state.uploaded_img_bytes))
-        image_base64_uri = image_to_base64_data_uri(img_pil)
-
-    content_block = []
-    content_block.append({"type": "text", "text": prompt})
-    if image_base64_uri:
-        content_block.append({"type": "image_url", "image_url": {"url": image_base64_uri}})
-
-    messages_payload.append({
-        "role": "user",
-        "content": content_block
-    })
-
-    # 3. Chiamata all'IA (Vision)
+    # Elaborazione
+    payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
+    
     with st.chat_message("assistant"):
-        with st.spinner("Elaborazione in corso..."):
-            try:
-                # Usiamo Llama 3.2 90B Vision Instruct per le immagini
-                completion = client.chat.completions.create(
-                    model="llama-3.2-90b-vision-instruct",
-                    messages=messages_payload,
-                    temperature=0.7,
-                    max_tokens=1024,
-                )
-                ai_response = completion.choices[0].message.content
-            except Exception as e:
-                ai_response = f"⚠️ Errore Vision API: {str(e)}"
-
-        st.markdown(ai_response)
-        # Aggiungi la risposta dell'IA alla cronologia
-        messaggi_correnti.append({"role": "assistant", "content": ai_response})
-        parla_testo(ai_response)
-
-    # 4. Reset e Rerun
-    st.session_state.uploaded_img_bytes = None # Resetta l'immagine dopo l'uso
-    st.rerun()
+        try:
+            if up:
+                b64 = base64.b64encode(up.getvalue()).decode()
+                payload[-1] = {"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}
+                resp = client.chat.completions.create(model="llama-3.2-90b-vision-instruct", messages=payload).choices[0].message.content
+            else:
+                resp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload).choices[0].message.content
+            
+            st.markdown(resp)
+            messaggi.append({"role": "assistant", "content": resp})
+            parla_testo(resp)
+        except Exception as e:
+            st.error(f"Errore: {e}")
