@@ -33,6 +33,8 @@ if "current_chat" not in st.session_state:
     st.session_state.current_chat = "Chat Principale"
 if "voce_attiva" not in st.session_state:
     st.session_state.voce_attiva = True
+if "uploaded_img_bytes" not in st.session_state:
+    st.session_state.uploaded_img_bytes = None
 
 oggi = datetime.now().strftime("%d/%m/%Y")
 
@@ -44,7 +46,6 @@ with st.sidebar:
     st.write("---")
     st.title("💬 Canali di Sistema")
     
-    # Pulsanti di navigazione fissi ed eleganti
     for canale in canali_fissi:
         is_active = (canale == st.session_state.current_chat)
         button_type = "primary" if is_active else "secondary"
@@ -76,19 +77,35 @@ messaggi = st.session_state.chat_sessions[st.session_state.current_chat]
 for msg in messaggi:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+        # Se c'è un'immagine salvata nei messaggi passati (opzionale)
 
-# --- INPUT PULITO (CON SUPPORTO IMMAGINI NATIVO) ---
-# Usiamo il meccanismo pulito di Streamlit con l'uploader integrato nella chat o gestito in modo ordinato
-uploaded_file = st.file_uploader("Allegato immagine (opzionale):", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+# --- AREA DI INPUT CON POPOVER "+" PER IMMAGINE ---
+col_pop, col_in = st.columns([1, 15])
 
-prompt = st.chat_input("Inserisci un comando per J.A.R.V.I.S. ...")
+with col_pop:
+    # Il pulsante "+" che apre la tendina per caricare l'immagine
+    with st.popover("➕", help="Allega immagine"):
+        uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"])
+        if uploaded_file:
+            st.session_state.uploaded_img_bytes = uploaded_file.getvalue()
+            st.image(st.session_state.uploaded_img_bytes, width=150, caption="Pronta")
+            if st.button("Rimuovi"):
+                st.session_state.uploaded_img_bytes = None
+                st.rerun()
+
+with col_in:
+    prompt = st.chat_input("Inserisci un comando per J.A.R.V.I.S. ...")
+
+# Mostra un'anteprima piccola sopra la chat se l'immagine è stata caricata ma non ancora inviata
+if st.session_state.uploaded_img_bytes:
+    st.info("📎 Immagine allegata e pronta per l'invio.")
 
 if prompt:
     messaggi.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-        if uploaded_file:
-            st.image(uploaded_file, width=250)
+        if st.session_state.uploaded_img_bytes:
+            st.image(st.session_state.uploaded_img_bytes, width=250)
 
     # Preparazione payload
     payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
@@ -96,8 +113,8 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Elaborazione in corso..."):
             try:
-                if uploaded_file:
-                    b64 = base64.b64encode(uploaded_file.getvalue()).decode()
+                if st.session_state.uploaded_img_bytes:
+                    b64 = base64.b64encode(st.session_state.uploaded_img_bytes).decode()
                     payload[-1] = {
                         "role": "user", 
                         "content": [
@@ -115,4 +132,6 @@ if prompt:
             except Exception as e:
                 st.error(f"Errore di sistema: {e}")
                 
+    # Reset immagine dopo l'invio
+    st.session_state.uploaded_img_bytes = None
     st.rerun()
