@@ -8,11 +8,38 @@ import io
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
 
+# Stili CSS avanzati con animazioni fluide in stile JARVIS/HUD
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
-    h1 { color: #00ccff; text-align: center; font-family: 'Courier New', monospace; }
-    .stChatMessage { border: 1px solid #00ccff; border-radius: 10px; background-color: #1a1a1a; }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes glow {
+        0% { text-shadow: 0 0 5px rgba(0,204,255,0.2); }
+        50% { text-shadow: 0 0 20px rgba(0,204,255,0.8); }
+        100% { text-shadow: 0 0 5px rgba(0,204,255,0.2); }
+    }
+
+    .jarvis-title {
+        color: #00ccff;
+        text-align: center;
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        animation: fadeIn 1.2s ease-out, glow 3s infinite;
+        letter-spacing: 2px;
+    }
+
+    .stChatMessage { 
+        border: 1px solid #00ccff; 
+        border-radius: 10px; 
+        background-color: #1a1a1a; 
+        animation: fadeIn 0.4s ease-out;
+    }
+
     #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
@@ -70,20 +97,19 @@ def parla_testo(testo):
         t = testo.replace('"', "'").replace('\n', ' ')
         st.components.v1.html(f'<script>const s=window.speechSynthesis; const u=new SpeechSynthesisUtterance("{t}"); u.lang="it-IT"; s.speak(u);</script>', height=0)
 
-# --- INTERFACCIA CHAT PRINCIPALE ---
-st.title(f"🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]")
+# --- INTERFACCIA CHAT PRINCIPALE CON TITOLO ANIMATO ---
+st.markdown(f"<h1 class='jarvis-title'>🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]</h1>", unsafe_allow_html=True)
+
 messaggi = st.session_state.chat_sessions[st.session_state.current_chat]
 
 for msg in messaggi:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        # Se c'è un'immagine salvata nei messaggi passati (opzionale)
 
 # --- AREA DI INPUT CON POPOVER "+" PER IMMAGINE ---
 col_pop, col_in = st.columns([1, 15])
 
 with col_pop:
-    # Il pulsante "+" che apre la tendina per caricare l'immagine
     with st.popover("➕", help="Allega immagine"):
         uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"])
         if uploaded_file:
@@ -96,7 +122,6 @@ with col_pop:
 with col_in:
     prompt = st.chat_input("Inserisci un comando per J.A.R.V.I.S. ...")
 
-# Mostra un'anteprima piccola sopra la chat se l'immagine è stata caricata ma non ancora inviata
 if st.session_state.uploaded_img_bytes:
     st.info("📎 Immagine allegata e pronta per l'invio.")
 
@@ -107,7 +132,6 @@ if prompt:
         if st.session_state.uploaded_img_bytes:
             st.image(st.session_state.uploaded_img_bytes, width=250)
 
-    # Preparazione payload
     payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
 
     with st.chat_message("assistant"):
@@ -132,6 +156,5 @@ if prompt:
             except Exception as e:
                 st.error(f"Errore di sistema: {e}")
                 
-    # Reset immagine dopo l'invio
     st.session_state.uploaded_img_bytes = None
     st.rerun()
