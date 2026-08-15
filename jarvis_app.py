@@ -3,13 +3,13 @@ import google.generativeai as genai
 import time
 from datetime import datetime
 
-# Configurazione stile CSS (Tema Neon/Dark)
+# Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
-    h1 { color: #00ccff; text-align: center; font-family: 'Courier New', monospace; }
+    h1 { color: #00ccff; font-family: 'Courier New', monospace; }
     .stChatMessage { border: 1px solid #00ccff; border-radius: 10px; background-color: #1a1a1a; }
     </style>
 """, unsafe_allow_html=True)
@@ -20,19 +20,36 @@ genai.configure(api_key=GOOGLE_API_KEY)
 
 model = genai.GenerativeModel('gemini-flash-latest')
 
-# --- SIDEBAR E INDICATORI ---
-with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/3/36/Marvel_Studios_logo.svg", width=150)
-    st.title("SISTEMA JARVIS")
-    st.write("---")
-    st.subheader("Stato Interno")
-    st.progress(85, text="Stato Core IA")
-    st.success("Connessione: STABILE")
-    voce_attiva = st.toggle("📢 Attiva Voce", value=True)
-    st.write("---")
-    st.info("Versione: 4.0.2 - Stark Enterprise")
+# --- GESTIONE DELLE CHAT MULTIPLE NELLA SIDEBAR ---
+if "chat_sessions" not in st.session_state:
+    st.session_state.chat_sessions = {"Chat Principale": []}
+if "current_chat" not in st.session_state:
+    st.session_state.current_chat = "Chat Principale"
 
-# --- FUNZIONI ---
+with st.sidebar:
+    st.title("💬 Cronologia Chat")
+    
+    # Bottone per creare una nuova chat
+    if st.button("➕ Nuova Chat", use_container_width=True):
+        nuova_chiave = f"Chat {len(st.session_state.chat_sessions) + 1}"
+        st.session_state.chat_sessions[nuova_chiave] = []
+        st.session_state.current_chat = nuova_chiave
+        st.rerun()
+
+    st.write("---")
+    st.write("**Le tue conversazioni:**")
+    
+    # Mostra l'elenco delle chat nella tendina a sinistra
+    for nome_chat in list(st.session_state.chat_sessions.keys()):
+        if st.button(nome_chat, use_container_width=True, key=f"btn_{nome_chat}"):
+            st.session_state.current_chat = nome_chat
+            st.rerun()
+
+    st.write("---")
+    voce_attiva = st.toggle("📢 Attiva Voce", value=True)
+    st.info("Versione: 4.2 - Stark Sidebar")
+
+# Funzione sintesi vocale
 def parla_testo(testo):
     if voce_attiva:
         testo_pulito = testo.replace('"', "'").replace('\n', ' ')
@@ -44,47 +61,33 @@ def parla_testo(testo):
         </script>"""
         st.components.v1.html(js_code, height=0, width=0)
 
-# Titolo e Animazione
-if "init" not in st.session_state:
-    st.title("🤖 J.A.R.V.I.S.")
-    ph = st.empty()
-    intro = "Inizializzazione core... Connessione neurale... Sistemi online."
-    for i in range(len(intro)+1):
-        ph.markdown(f"<h3 style='color:#00ccff'>{intro[:i]}</h3>", unsafe_allow_html=True)
-        time.sleep(0.05)
-    st.session_state.init = True
-    ph.empty()
+# Titolo principale
+st.title(f"🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]")
 
-st.title("🤖 J.A.R.V.I.S.")
+# Recupera i messaggi della chat corrente
+messaggi_correnti = st.session_state.chat_sessions[st.session_state.current_chat]
 
-if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Sistemi online. Pronto all'uso."}]
+if not messaggi_correnti:
+    messaggi_correnti.append({"role": "assistant", "content": f"Sistemi online nella sessione '{st.session_state.current_chat}'. Come posso aiutarti?"})
 
-# Bottoni Comandi Rapidi
-col1, col2, col3 = st.columns(3)
-with col1:
-    if st.button("Diagnostica"): prompt_rapido = "Fai una diagnostica del sistema."
-with col2:
-    if st.button("Meteo"): prompt_rapido = "Com'è il tempo oggi?"
-with col3:
-    if st.button("Curiosità"): prompt_rapido = "Raccontami una curiosità tecnologica."
-
-# Gestione Chat
-for message in st.session_state.messages:
+# Visualizza i messaggi della chat attiva
+for message in messaggi_correnti:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-def elabora_risposta(user_input):
-    st.session_state.messages.append({"role": "user", "content": user_input})
+# Input dell'utente
+if prompt := st.chat_input("Scrivi un comando..."):
+    messaggi_correnti.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
-        st.markdown(user_input)
-    with st.chat_message("assistant"):
-        response = model.generate_content(user_input)
-        st.markdown(response.text)
-        st.session_state.messages.append({"role": "assistant", "content": response.text})
-        parla_testo(response.text)
+        st.markdown(prompt)
 
-if prompt := st.chat_input("Inserisci comando..."):
-    elabora_risposta(prompt)
-elif 'prompt_rapido' in locals():
-    elabora_risposta(prompt_rapido)
+    with st.chat_message("assistant"):
+        # Costruisce la cronologia per Gemini in modo corretto
+        chat_history_gemini = [{"role": m["role"], "parts": [m["content"]]} for m in messaggi_correnti[:-1]]
+        chat = model.start_chat(history=chat_history_gemini)
+        
+        response = chat.send_message(prompt)
+        st.markdown(response.text)
+        messaggi_correnti.append({"role": "assistant", "content": response.text})
+        parla_testo(response.text)
+    st.rerun()
