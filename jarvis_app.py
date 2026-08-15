@@ -92,7 +92,11 @@ with col_input:
     prompt = st.chat_input("Scrivi un comando...")
 
 if prompt:
-    img_pil = Image.open(uploaded_file) if uploaded_file else None
+    img_pil = None
+    if uploaded_file:
+        img_pil = Image.open(uploaded_file)
+        # Ridimensiona l'immagine per evitare di sovraccaricare i limiti di token dell'API
+        img_pil.thumbnail((1024, 1024))
     
     messaggi_correnti.append({"role": "user", "content": prompt, "image": img_pil})
     
@@ -102,11 +106,17 @@ if prompt:
         st.markdown(prompt)
         
     with st.chat_message("assistant"):
-        contenuti_invio = [img_pil, prompt] if img_pil else [prompt]
-        response = model.generate_content(contenuti_invio)
-        st.markdown(response.text)
-        messaggi_correnti.append({"role": "assistant", "content": response.text})
-        parla_testo(response.text)
+        with st.spinner("Elaborazione in corso..."):
+            try:
+                contenuti_invio = [img_pil, prompt] if img_pil else [prompt]
+                response = model.generate_content(contenuti_invio)
+                ai_response = response.text
+            except Exception as e:
+                ai_response = "⚠️ Attenzione: Limite di richieste superato o errore temporaneo dell'API. Attendi qualche secondo prima di inviare un altro messaggio."
+
+        st.markdown(ai_response)
+        messaggi_correnti.append({"role": "assistant", "content": ai_response})
+        parla_testo(ai_response)
         
     st.rerun()
     
