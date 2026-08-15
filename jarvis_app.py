@@ -55,6 +55,7 @@ elif "Emergenza" in personalita:
 else:
     system_instruction = f"Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata. Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile."
 
+# MODELLO CORRETTO SENZA IL PREFISSO 'models/'
 model = genai.GenerativeModel(model_name='gemini-1.5-flash', system_instruction=system_instruction)
 
 # --- FUNZIONE VOCE (TTS) ---
