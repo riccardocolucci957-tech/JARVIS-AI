@@ -18,18 +18,26 @@ st.markdown("""
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 genai.configure(api_key=GOOGLE_API_KEY)
 
-model = genai.GenerativeModel('gemini-flash-latest')
-
-# --- GESTIONE DELLE CHAT MULTIPLE NELLA SIDEBAR ---
+# --- SIDEBAR E GESTIONE PERSONALITÀ ---
 if "chat_sessions" not in st.session_state:
     st.session_state.chat_sessions = {"Chat Principale": []}
 if "current_chat" not in st.session_state:
     st.session_state.current_chat = "Chat Principale"
 
+oggi = datetime.now().strftime("%d/%m/%Y")
+
 with st.sidebar:
+    st.title("⚙️ Pannello di Controllo")
+    
+    # Selettore di Personalità
+    personalita = st.selectbox(
+        "Protocollo di Personalità",
+        ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"]
+    )
+    
+    st.write("---")
     st.title("💬 Cronologia Chat")
     
-    # Bottone per creare una nuova chat
     if st.button("➕ Nuova Chat", use_container_width=True):
         nuova_chiave = f"Chat {len(st.session_state.chat_sessions) + 1}"
         st.session_state.chat_sessions[nuova_chiave] = []
@@ -37,9 +45,6 @@ with st.sidebar:
         st.rerun()
 
     st.write("---")
-    st.write("**Le tue conversazioni:**")
-    
-    # Mostra l'elenco delle chat nella tendina a sinistra
     for nome_chat in list(st.session_state.chat_sessions.keys()):
         if st.button(nome_chat, use_container_width=True, key=f"btn_{nome_chat}"):
             st.session_state.current_chat = nome_chat
@@ -47,7 +52,25 @@ with st.sidebar:
 
     st.write("---")
     voce_attiva = st.toggle("📢 Attiva Voce", value=True)
-    st.info("Versione: 4.2 - Stark Sidebar")
+    st.info("Versione: 4.3 - Stark OS")
+
+# Imposta le istruzioni di sistema in base alla personalità scelta
+if "Tony Stark" in personalita:
+    system_instruction = f"""Sei J.A.R.V.I.S., l'intelligenza artificiale di Tony Stark. 
+    Rispondi in italiano con un tono sarcastico, ironico, brillante ma estremamente efficiente. 
+    Oggi è il {oggi}."""
+elif "Emergenza" in personalita:
+    system_instruction = f"""Sei J.A.R.V.I.S. in modalità Protocollo di Emergenza. 
+    Rispondi in italiano in modo estremamente sintetico, freddo, militare e diretto al punto. 
+    Oggi è il {oggi}."""
+else:
+    system_instruction = f"""Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata e disponibile online. 
+    Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile."""
+
+model = genai.GenerativeModel(
+    model_name='gemini-flash-latest',
+    system_instruction=system_instruction
+)
 
 # Funzione sintesi vocale
 def parla_testo(testo):
@@ -68,7 +91,7 @@ st.title(f"🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]")
 messaggi_correnti = st.session_state.chat_sessions[st.session_state.current_chat]
 
 if not messaggi_correnti:
-    messaggi_correnti.append({"role": "assistant", "content": f"Sistemi online nella sessione '{st.session_state.current_chat}'. Come posso aiutarti?"})
+    messaggi_correnti.append({"role": "assistant", "content": f"Sistemi online in modalità '{personalita}'. Come posso assisterti?"})
 
 # Visualizza i messaggi della chat attiva
 for message in messaggi_correnti:
@@ -82,7 +105,6 @@ if prompt := st.chat_input("Scrivi un comando..."):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        # Costruisce la cronologia per Gemini in modo corretto
         chat_history_gemini = [{"role": m["role"], "parts": [m["content"]]} for m in messaggi_correnti[:-1]]
         chat = model.start_chat(history=chat_history_gemini)
         
