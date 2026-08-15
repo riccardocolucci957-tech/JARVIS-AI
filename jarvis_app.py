@@ -9,8 +9,8 @@ genai.configure(api_key=GOOGLE_API_KEY)
 
 oggi = datetime.now().strftime("%d/%m/%Y")
 system_instruction = f"""
-Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata. 
-Oggi è il giorno {oggi}. Rispondi sempre in italiano.
+Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata e disponibile online. 
+Oggi è il giorno {oggi}. Rispondi sempre in italiano in modo professionale e disponibile.
 """
 
 model = genai.GenerativeModel(
@@ -21,7 +21,7 @@ model = genai.GenerativeModel(
 st.title("🤖 J.A.R.V.I.S.")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Sistemi online, Capo."}]
+    st.session_state.messages = [{"role": "assistant", "content": "Sistemi online. Come posso aiutarti oggi?"}]
 
 chat = model.start_chat(history=[])
 
@@ -29,7 +29,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-if prompt := st.chat_input("Comando..."):
+if prompt := st.chat_input("Scrivi un comando..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
