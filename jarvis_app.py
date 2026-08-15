@@ -1,8 +1,6 @@
 import streamlit as st
-from google import genai
-from google.genai import types
+from groq import Groq
 from datetime import datetime
-from PIL import Image
 
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
@@ -16,9 +14,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Recupero API Key e inizializzazione del client Google GenAI
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-client = genai.Client(api_key=GOOGLE_API_KEY)
+# Recupero API Key dai Secrets protetti di Streamlit
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+client = Groq(api_key=GROQ_API_KEY)
 
 # --- STATO DELLA SESSIONE ---
 if "chat_sessions" not in st.session_state:
@@ -50,11 +48,11 @@ with st.sidebar:
 
 # --- CONFIGURAZIONE PERSONALITÀ ---
 if "Tony Stark" in personalita:
-    system_instruction = f"Sei J.A.R.V.I.S., l'intelligenza artificiale di Tony Stark. Rispondi in italiano con un tono sarcastico, ironico, brillante ma efficiente. Oggi è il {oggi}."
+    system_content = f"Sei J.A.R.V.I.S., l'intelligenza artificiale di Tony Stark. Rispondi in italiano con un tono sarcastico, ironico, brillante ma efficiente. Oggi è il {oggi}."
 elif "Emergenza" in personalita:
-    system_instruction = f"Sei J.A.R.V.I.S. in modalità Protocollo di Emergenza. Rispondi in italiano in modo sintetico, freddo e militare. Oggi è il {oggi}."
+    system_content = f"Sei J.A.R.V.I.S. in modalità Protocollo di Emergenza. Rispondi in italiano in modo sintetico, freddo e militare. Oggi è il {oggi}."
 else:
-    system_instruction = f"Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata. Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile."
+    system_content = f"Sei J.A.R.V.I.S., un'intelligenza artificiale avanzata. Oggi è il {oggi}. Rispondi sempre in italiano in modo professionale e disponibile."
 
 # --- FUNZIONE VOCE (TTS) ---
 def parla_testo(testo):
@@ -76,46 +74,30 @@ st.title(f"🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]")
 messaggi_correnti = st.session_state.chat_sessions[st.session_state.current_chat]
 for message in messaggi_correnti:
     with st.chat_message(message["role"]):
-        if "image" in message and message["image"]: 
-            st.image(message["image"], width=300)
         st.markdown(message["content"])
 
-# --- INPUT AREA CON POPOVER PER IMMAGINE (+) ---
-col_button, col_input = st.columns([1, 10])
-
-with col_button:
-    with st.popover("➕"):
-        uploaded_file = st.file_uploader("Importa immagine", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
-
-with col_input:
-    prompt = st.chat_input("Scrivi un comando...")
+# --- INPUT AREA ---
+prompt = st.chat_input("Scrivi un comando...")
 
 if prompt:
-    img_pil = None
-    if uploaded_file:
-        img_pil = Image.open(uploaded_file)
-        img_pil.thumbnail((1024, 1024))
-    
-    messaggi_correnti.append({"role": "user", "content": prompt, "image": img_pil})
+    messaggi_correnti.append({"role": "user", "content": prompt})
     
     with st.chat_message("user"):
-        if img_pil: 
-            st.image(img_pil, width=300)
         st.markdown(prompt)
         
     with st.chat_message("assistant"):
         with st.spinner("Elaborazione in corso..."):
             try:
-                contenuti = [img_pil, prompt] if img_pil else [prompt]
-                # Modello corretto e stabile
-                response = client.models.generate_content(
-                    model='gemini-1.5-flash',
-                    contents=contenuti,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction
-                    )
+                messages_payload = [{"role": "system", "content": system_content}]
+                for msg in messaggi_correnti:
+                    messages_payload.append({"role": msg["role"], "content": msg["content"]})
+
+                completion = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages_payload,
+                    temperature=0.7,
                 )
-                ai_response = response.text
+                ai_response = completion.choices[0].message.content
             except Exception as e:
                 ai_response = f"⚠️ Errore API: {str(e)}"
 
