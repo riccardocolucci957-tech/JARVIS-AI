@@ -16,7 +16,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Recupero API Key e inizializzazione del nuovo client Google GenAI
+# Recupero API Key e inizializzazione del client Google GenAI
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 client = genai.Client(api_key=GOOGLE_API_KEY)
 
@@ -107,9 +107,9 @@ if prompt:
         with st.spinner("Elaborazione in corso..."):
             try:
                 contenuti = [img_pil, prompt] if img_pil else [prompt]
-                # Chiamata pulita con la nuova libreria google-genai
+                # Modello corretto e stabile
                 response = client.models.generate_content(
-                    model='gemini-2.5-flash',
+                    model='gemini-1.5-flash',
                     contents=contenuti,
                     config=types.GenerateContentConfig(
                         system_instruction=system_instruction
