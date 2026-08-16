@@ -9,10 +9,26 @@ import random
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
 
-# Stili CSS avanzati per un'interfaccia pulita e priva di elementi di disturbo
+# Stili CSS avanzati per bloccare la selezione del testo e rendere le scritte fisse/non modificabili
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
+    
+    /* Blocco totale della selezione del testo e degli elementi con il mouse */
+    * {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+    }
+
+    /* Permettiamo di selezionare solo il testo dentro la chat e la casella di scrittura per comodità */
+    .stChatMessage, input, textarea {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+    }
     
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(-8px); }
@@ -32,6 +48,7 @@ st.markdown("""
         font-weight: bold;
         animation: fadeIn 1.2s ease-out, glow 3s infinite;
         letter-spacing: 2px;
+        pointer-events: none;
     }
 
     .stChatMessage { 
@@ -151,7 +168,7 @@ with col_sug3:
     if st.button(domande_del_giorno[2], use_container_width=True):
         domanda_cliccata = domande_del_giorno[2]
 
-# --- AREA DI INPUT CON POPOVER "+" (IMMAGINE) E BARRA DI SCRITTURA PULITA ---
+# --- AREA DI INPUT CON POPOVER "+" (IMMAGINE) E BARRA DI SCRITTURA ---
 col_pop, col_in = st.columns([1, 15])
 
 with col_pop:
