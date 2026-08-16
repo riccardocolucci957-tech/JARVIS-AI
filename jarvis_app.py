@@ -9,7 +9,7 @@ import random
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
 
-# Stili CSS puliti (lasciamo visibile l'header così il tasto in alto a sinistra c'è sempre)
+# Stili CSS definitivi: nasconde solo la toolbar a destra e lascia libero il tasto in alto a sinistra
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -61,6 +61,9 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
+    /* Rimuove i bottoni a destra (Share, stella, GitHub) senza toccare l'header di sinistra */
+    [data-testid="stToolbar"] { display: none !important; }
+    [data-testid="stDecoration"] { display: none !important; }
     #MainMenu { visibility: hidden !important; display: none !important; } 
     footer { visibility: hidden !important; display: none !important; }
     </style>
