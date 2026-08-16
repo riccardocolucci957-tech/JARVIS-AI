@@ -6,10 +6,14 @@ import base64
 import io
 import random
 
-# Configurazione della pagina (sidebar aperta di default)
-st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
+# Configurazione della pagina
+st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="collapsed")
 
-# Stili CSS puliti: sistema la grafica e nasconde solo i bottoni inutili in alto a destra
+# Inizializzazione dello stato del menu (chiuso di default, o aperto se preferisci)
+if "show_sidebar" not in st.session_state:
+    st.session_state.show_sidebar = False
+
+# Stili CSS per ripulire la grafica e posizionare il pulsante laterale
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -47,7 +51,7 @@ st.markdown("""
         animation: fadeIn 1.2s ease-out, glow 3s infinite;
         letter-spacing: 2px;
         pointer-events: none;
-        margin-top: -20px;
+        margin-top: -10px;
     }
 
     .stChatMessage { 
@@ -62,11 +66,12 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    /* Rimuove la barra strumenti in alto a destra */
+    /* Rimuove i bottoni inutili in alto a destra */
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stDecoration"] { display: none !important; }
     #MainMenu { visibility: hidden !important; display: none !important; } 
     footer { visibility: hidden !important; display: none !important; }
+    [data-testid="stSidebar"] { display: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -108,124 +113,144 @@ bancomat_domande = [
 random.seed(giorno_seed)
 domande_del_giorno = random.sample(bancomat_domande, 3)
 
-# --- SIDEBAR NATIVA ORDINATA ---
-with st.sidebar:
-    st.markdown("### ⚙️ Controllo")
-    personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
-    lingua = st.selectbox("🌐 Lingua", ["Italiano", "English", "Español", "Français", "Deutsch"])
-    st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
+# --- LAYOUT PRINCIPALE: PULSANTE LATERALE + MENU (SE APERTO) + CHAT ---
+# Creiamo una struttura a colonne flessibile: una colonna stretta per il pulsante/menu, e una grande per la chat
+col_btn, col_rest = st.columns([0.8, 12])
+
+with col_btn:
+    # Il pulsante con le freccette per aprire/chiudere
+    btn_label = "◀" if st.session_state.show_sidebar else "▶"
+    if st.button(btn_label, help="Apri/Chiudi Menu", use_container_width=True):
+        st.session_state.show_sidebar = not st.session_state.show_sidebar
+        st.rerun()
+
+# Se il menu è aperto, creiamo un layout a due colonne (Menu a sinistra, Chat a destra)
+if st.session_state.show_sidebar:
+    col_menu, col_chat = st.columns([2.5, 7.5])
     
-    st.write("---")
-    st.markdown("### 💬 Canali di Sistema")
-    
-    for canale in canali_fissi:
-        is_active = (canale == st.session_state.current_chat)
-        button_type = "primary" if is_active else "secondary"
-        if st.button(canale, use_container_width=True, type=button_type):
-            st.session_state.current_chat = canale
+    with col_menu:
+        st.markdown("### ⚙️ Controllo")
+        personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
+        lingua = st.selectbox("🌐 Lingua", ["Italiano", "English", "Español", "Français", "Deutsch"])
+        st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
+        
+        st.write("---")
+        st.markdown("### 💬 Canali di Sistema")
+        
+        for canale in canali_fissi:
+            is_active = (canale == st.session_state.current_chat)
+            button_type = "primary" if is_active else "secondary"
+            if st.button(canale, use_container_width=True, type=button_type):
+                st.session_state.current_chat = canale
+                st.rerun()
+                
+        st.write("---")
+        
+        if st.button("🗑️ Svuota Chat Attiva", use_container_width=True):
+            st.session_state.chat_sessions[st.session_state.current_chat] = []
             st.rerun()
             
-    st.write("---")
-    
-    if st.button("🗑️ Svuota Chat Attiva", use_container_width=True):
-        st.session_state.chat_sessions[st.session_state.current_chat] = []
-        st.rerun()
-        
-    st.caption("🔒 Configurazione protetta da amministratore.")
-
-# --- LOGICA PERSONALITA E LINGUA ---
-if "Tony Stark" in personalita:
-    base_prompt = "You are J.A.R.V.I.S., Tony Stark's AI. Answer with a sarcastic, brilliant tone."
-elif "Emergenza" in personalita:
-    base_prompt = "J.A.R.V.I.S. Emergency Protocol. Answer in a concise, cold, military style."
+        st.caption("🔒 Configurazione protetta.")
 else:
-    base_prompt = "J.A.R.V.I.S., advanced AI. Answer professionally, precisely, and helpfully."
+    col_chat = col_rest
+    personalita = "Standard (Professionale)"
+    lingua = "Italiano"
 
-system_content = f"{base_prompt} Respond strictly in {lingua}. Date: {oggi}."
+# --- AREA CHAT ---
+with col_chat:
+    # --- LOGICA PERSONALITA E LINGUA ---
+    if "Tony Stark" in personalita:
+        base_prompt = "You are J.A.R.V.I.S., Tony Stark's AI. Answer with a sarcastic, brilliant tone."
+    elif "Emergenza" in personalita:
+        base_prompt = "J.A.R.V.I.S. Emergency Protocol. Answer in a concise, cold, military style."
+    else:
+        base_prompt = "J.A.R.V.I.S., advanced AI. Answer professionally, precisely, and helpfully."
 
-# --- FUNZIONE VOCE (TTS) ---
-def parla_testo(testo):
-    if st.session_state.voce_attiva:
-        t = testo.replace('"', "'").replace('\n', ' ')
-        codice_lingua = {"Italiano": "it-IT", "English": "en-US", "Español": "es-ES", "Français": "fr-FR", "Deutsch": "de-DE"}.get(lingua, "it-IT")
-        st.components.v1.html(f'<script>const s=window.speechSynthesis; const u=new SpeechSynthesisUtterance("{t}"); u.lang="{codice_lingua}"; s.speak(u);</script>', height=0)
+    system_content = f"{base_prompt} Respond strictly in {lingua}. Date: {oggi}."
 
-# --- INTERFACCIA CHAT PRINCIPALE ---
-st.markdown(f"<h1 class='jarvis-title'>🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]</h1>", unsafe_allow_html=True)
+    # --- FUNZIONE VOCE (TTS) ---
+    def parla_testo(testo):
+        if st.session_state.voce_attiva:
+            t = testo.replace('"', "'").replace('\n', ' ')
+            codice_lingua = {"Italiano": "it-IT", "English": "en-US", "Español": "es-ES", "Français": "fr-FR", "Deutsch": "de-DE"}.get(lingua, "it-IT")
+            st.components.v1.html(f'<script>const s=window.speechSynthesis; const u=new SpeechSynthesisUtterance("{t}"); u.lang="{codice_lingua}"; s.speak(u);</script>', height=0)
 
-messaggi = st.session_state.chat_sessions[st.session_state.current_chat]
+    # --- TITOLO ANIMATO ---
+    st.markdown(f"<h1 class='jarvis-title'>🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]</h1>", unsafe_allow_html=True)
 
-for msg in messaggi:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+    messaggi = st.session_state.chat_sessions[st.session_state.current_chat]
 
-# --- SUGGERIMENTI RAPIDI GIORNALIERI ---
-st.markdown("<div class='suggestion-container'></div>", unsafe_allow_html=True)
-st.caption("💡 Suggerimenti del giorno (clicca per inviare):")
-col_sug1, col_sug2, col_sug3 = st.columns(3)
+    for msg in messaggi:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-domanda_cliccata = None
-with col_sug1:
-    if st.button(domande_del_giorno[0], use_container_width=True):
-        domanda_cliccata = domande_del_giorno[0]
-with col_sug2:
-    if st.button(domande_del_giorno[1], use_container_width=True):
-        domanda_cliccata = domande_del_giorno[1]
-with col_sug3:
-    if st.button(domande_del_giorno[2], use_container_width=True):
-        domanda_cliccata = domande_del_giorno[2]
+    # --- SUGGERIMENTI RAPIDI GIORNALIERI ---
+    st.markdown("<div class='suggestion-container'></div>", unsafe_allow_html=True)
+    st.caption("💡 Suggerimenti del giorno (clicca per inviare):")
+    col_sug1, col_sug2, col_sug3 = st.columns(3)
 
-# --- AREA DI INPUT CON POPOVER "+" (IMMAGINE) E BARRA DI SCRITTURA ---
-col_pop, col_in = st.columns([1, 15])
+    domanda_cliccata = None
+    with col_sug1:
+        if st.button(domande_del_giorno[0], use_container_width=True):
+            domanda_cliccata = domande_del_giorno[0]
+    with col_sug2:
+        if st.button(domande_del_giorno[1], use_container_width=True):
+            domanda_cliccata = domande_del_giorno[1]
+    with col_sug3:
+        if st.button(domande_del_giorno[2], use_container_width=True):
+            domanda_cliccata = domande_del_giorno[2]
 
-with col_pop:
-    with st.popover("➕", help="Allega immagine"):
-        uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"])
-        if uploaded_file:
-            st.session_state.uploaded_img_bytes = uploaded_file.getvalue()
-            st.image(st.session_state.uploaded_img_bytes, width=150, caption="Pronta")
-            if st.button("Rimuovi"):
-                st.session_state.uploaded_img_bytes = None
-                st.rerun()
+    # --- AREA DI INPUT CON POPOVER "+" (IMMAGINE) E BARRA DI SCRITTURA ---
+    col_pop, col_in = st.columns([1, 15])
 
-with col_in:
-    prompt_digitato = st.chat_input("Scrivi un comando...")
+    with col_pop:
+        with st.popover("➕", help="Allega immagine"):
+            uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"])
+            if uploaded_file:
+                st.session_state.uploaded_img_bytes = uploaded_file.getvalue()
+                st.image(st.session_state.uploaded_img_bytes, width=150, caption="Pronta")
+                if st.button("Rimuovi"):
+                    st.session_state.uploaded_img_bytes = None
+                    st.rerun()
 
-prompt = domanda_cliccata if domanda_cliccata else prompt_digitato
+    with col_in:
+        prompt_digitato = st.chat_input("Scrivi un comando...")
 
-if st.session_state.uploaded_img_bytes:
-    st.info("📎 Immagine allegata e pronta per l'invio.")
+    prompt = domanda_cliccata if domanda_cliccata else prompt_digitato
 
-if prompt:
-    messaggi.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-        if st.session_state.uploaded_img_bytes:
-            st.image(st.session_state.uploaded_img_bytes, width=250)
+    if st.session_state.uploaded_img_bytes:
+        st.info("📎 Immagine allegata e pronta per l'invio.")
 
-    payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
+    if prompt:
+        messaggi.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+            if st.session_state.uploaded_img_bytes:
+                st.image(st.session_state.uploaded_img_bytes, width=250)
 
-    with st.chat_message("assistant"):
-        with st.spinner("Elaborazione in corso..."):
-            try:
-                if st.session_state.uploaded_img_bytes:
-                    b64 = base64.b64encode(st.session_state.uploaded_img_bytes).decode()
-                    payload[-1] = {
-                        "role": "user", 
-                        "content": [
-                            {"type": "text", "text": prompt}, 
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                        ]
-                    }
-                    resp = client.chat.completions.create(model="llama-3.2-90b-vision-instruct", messages=payload).choices[0].message.content
-                else:
-                    resp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload).choices[0].message.content
-                
-                st.markdown(resp)
-                messaggi.append({"role": "assistant", "content": resp})
-                parla_testo(resp)
-            except Exception as e:
-                st.error(f"Errore di sistema: {e}")
-                
-    st.session_state.uploaded_img_bytes = None
-    st.rerun()
+        payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
+
+        with st.chat_message("assistant"):
+            with st.spinner("Elaborazione in corso..."):
+                try:
+                    if st.session_state.uploaded_img_bytes:
+                        b64 = base64.b64encode(st.session_state.uploaded_img_bytes).decode()
+                        payload[-1] = {
+                            "role": "user", 
+                            "content": [
+                                {"type": "text", "text": prompt}, 
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                            ]
+                        }
+                        resp = client.chat.completions.create(model="llama-3.2-90b-vision-instruct", messages=payload).choices[0].message.content
+                    else:
+                        resp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload).choices[0].message.content
+                    
+                    st.markdown(resp)
+                    messaggi.append({"role": "assistant", "content": resp})
+                    parla_testo(resp)
+                except Exception as e:
+                    st.error(f"Errore di sistema: {e}")
+                    
+        st.session_state.uploaded_img_bytes = None
+        st.rerun()
