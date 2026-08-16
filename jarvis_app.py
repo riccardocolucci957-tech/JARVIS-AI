@@ -54,13 +54,11 @@ if not st.session_state.logged_in:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Pulsante Google
-        if st.button("🌐  Accedi / Registrati con Google", use_container_width=True):
+        if st.button("🌐 Accedi / Registrati con Google", use_container_width=True):
             st.session_state.logged_in = True
             st.rerun()
             
-        # Pulsante Apple
-        if st.button("  Accedi / Registrati con Apple", use_container_width=True):
+        if st.button(" Accedi / Registrati con Apple", use_container_width=True):
             st.session_state.logged_in = True
             st.rerun()
             
@@ -284,10 +282,21 @@ with col_chat:
             if st.session_state.uploaded_img_bytes:
                 st.image(st.session_state.uploaded_img_bytes, width=250)
 
-        payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
+        # --- GESTIONE COMANDI RAPIDI SPECIALI ---
+        risposta_rapida = None
+        if prompt.strip().lower() == "/ora":
+            risposta_rapida = f"⏱️ Orario di sistema attuale: {datetime.now().strftime('%H:%M:%S')}"
+        elif prompt.strip().lower() == "/data":
+            risposta_rapida = f"📅 Data di sistema attuale: {oggi}"
 
         with st.chat_message("assistant"):
-            with st.spinner("Elaborazione in corso..."):
+            if risposta_rapida:
+                st.markdown(risposta_rapida)
+                resp = risposta_rapida
+                messaggi.append({"role": "assistant", "content": resp})
+                parla_testo(resp)
+            else:
+                payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
                 try:
                     if st.session_state.uploaded_img_bytes:
                         b64 = base64.b64encode(st.session_state.uploaded_img_bytes).decode()
@@ -298,11 +307,12 @@ with col_chat:
                                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
                             ]
                         }
-                        resp = client.chat.completions.create(model="llama-3.2-90b-vision-instruct", messages=payload).choices[0].message.content
+                        completion = client.chat.completions.create(model="llama-3.2-90b-vision-instruct", messages=payload, stream=True)
                     else:
-                        resp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload).choices[0].message.content
+                        completion = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload, stream=True)
                     
-                    st.markdown(resp)
+                    # Scrittura in streaming della risposta (effetto terminale)
+                    resp = st.write_stream(completion)
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
                 except Exception as e:
