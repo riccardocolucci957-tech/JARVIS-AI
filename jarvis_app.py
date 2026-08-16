@@ -6,11 +6,11 @@ import base64
 import json
 import os
 import random
+import urllib.parse
 
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="collapsed")
 
-# Gestione del file di salvataggio locale delle chat
 HISTORY_FILE = "jarvis_history.json"
 
 def carica_cronologia():
@@ -26,13 +26,12 @@ def salva_cronologia(sessions):
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(sessions, f, ensure_ascii=False, indent=4)
 
-# Inizializzazione dello stato di autenticazione e del menu
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "show_sidebar" not in st.session_state:
     st.session_state.show_sidebar = False
 
-# --- SCHERMATA DI ACCESSO / REGISTRAZIONE (GOOGLE & APPLE) ---
+# --- SCHERMATA DI ACCESSO ---
 if not st.session_state.logged_in:
     st.markdown("""
         <style>
@@ -68,78 +67,27 @@ if not st.session_state.logged_in:
                 <p class="login-subtitle">Autenticazione di Sicurezza Richiesta</p>
             </div>
         """, unsafe_allow_html=True)
-        
         st.markdown("<br>", unsafe_allow_html=True)
-        
         if st.button("🌐 Accedi / Registrati con Google", use_container_width=True):
             st.session_state.logged_in = True
             st.rerun()
-            
         if st.button(" Accedi / Registrati con Apple", use_container_width=True):
             st.session_state.logged_in = True
             st.rerun()
-            
     st.stop()
 
-# --- STILI CSS GENERALI DELL'APP ---
+# --- STILI CSS ---
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
-    
-    * {
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-        user-select: none;
-    }
-
-    .stChatMessage, input, textarea {
-        -webkit-user-select: text !important;
-        -moz-user-select: text !important;
-        -ms-user-select: text !important;
-        user-select: text !important;
-    }
-    
-    @keyframes slideIn {
-        from { opacity: 0; transform: translateX(-15px); }
-        to { opacity: 1; transform: translateX(0); }
-    }
-    
-    @keyframes glow {
-        0% { text-shadow: 0 0 5px rgba(0,204,255,0.2); }
-        50% { text-shadow: 0 0 20px rgba(0,204,255,0.8); }
-        100% { text-shadow: 0 0 5px rgba(0,204,255,0.2); }
-    }
-
-    .menu-container {
-        animation: slideIn 0.35s ease-out;
-        border-right: 1px solid rgba(0,204,255,0.2);
-        padding-right: 15px;
-    }
-
-    .jarvis-title {
-        color: #00ccff;
-        text-align: center;
-        font-family: 'Courier New', monospace;
-        font-weight: bold;
-        animation: slideIn 0.5s ease-out, glow 3s infinite;
-        letter-spacing: 2px;
-        pointer-events: none;
-        margin-top: -10px;
-    }
-
-    .stChatMessage { 
-        border: 1px solid #00ccff; 
-        border-radius: 10px; 
-        background-color: #1a1a1a; 
-        animation: slideIn 0.3s ease-out;
-    }
-
-    .suggestion-container {
-        animation: slideIn 0.4s ease-out;
-        margin-bottom: 10px;
-    }
-
+    * { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+    .stChatMessage, input, textarea { -webkit-user-select: text !important; -moz-user-select: text !important; -ms-user-select: text !important; user-select: text !important; }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-15px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes glow { 0% { text-shadow: 0 0 5px rgba(0,204,255,0.2); } 50% { text-shadow: 0 0 20px rgba(0,204,255,0.8); } 100% { text-shadow: 0 0 5px rgba(0,204,255,0.2); } }
+    .menu-container { animation: slideIn 0.35s ease-out; border-right: 1px solid rgba(0,204,255,0.2); padding-right: 15px; }
+    .jarvis-title { color: #00ccff; text-align: center; font-family: 'Courier New', monospace; font-weight: bold; animation: slideIn 0.5s ease-out, glow 3s infinite; letter-spacing: 2px; pointer-events: none; margin-top: -10px; }
+    .stChatMessage { border: 1px solid #00ccff; border-radius: 10px; background-color: #1a1a1a; animation: slideIn 0.3s ease-out; }
+    .suggestion-container { animation: slideIn 0.4s ease-out; margin-bottom: 10px; }
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stDecoration"] { display: none !important; }
     #MainMenu { visibility: hidden !important; display: none !important; } 
@@ -148,22 +96,16 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Recupero API Key protetta
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
     st.error("⚠️ Configura GROQ_API_KEY nei Secrets di Streamlit.")
     st.stop()
 
-# Inizializzazione sessione chat (Caricamento da file JSON locale se esiste)
 canali_fissi = ["Chat Principale", "Analisi Tecnica", "Codice e Script"]
-
 saved_sessions = carica_cronologia()
 if "chat_sessions" not in st.session_state:
-    if saved_sessions:
-        st.session_state.chat_sessions = saved_sessions
-    else:
-        st.session_state.chat_sessions = {canale: [] for canale in canali_fissi}
+    st.session_state.chat_sessions = saved_sessions if saved_sessions else {canale: [] for canale in canali_fissi}
 
 if "current_chat" not in st.session_state:
     st.session_state.current_chat = "Chat Principale"
@@ -175,7 +117,6 @@ if "uploaded_img_bytes" not in st.session_state:
 oggi = datetime.now().strftime("%d/%m/%Y")
 giorno_seed = datetime.now().strftime("%Y%m%d")
 
-# --- GENERATORE DOMANDE GIORNALIERE ---
 bancomat_domande = [
     "Fammi una battuta divertente sul mondo tech o sull'informatica.",
     "Che tempo fa oggi? Dammi un'analisi rapida.",
@@ -191,9 +132,7 @@ bancomat_domande = [
 random.seed(giorno_seed)
 domande_del_giorno = random.sample(bancomat_domande, 3)
 
-# --- LAYOUT PRINCIPALE: PULSANTE LATERALE + MENU ANIMATO + CHAT ---
 col_btn, col_rest = st.columns([0.8, 12])
-
 with col_btn:
     btn_label = "◀" if st.session_state.show_sidebar else "▶"
     if st.button(btn_label, help="Apri/Chiudi Menu", use_container_width=True):
@@ -202,35 +141,27 @@ with col_btn:
 
 if st.session_state.show_sidebar:
     col_menu, col_chat = st.columns([2.5, 7.5])
-    
     with col_menu:
         st.markdown('<div class="menu-container">', unsafe_allow_html=True)
         st.markdown("### ⚙️ Controllo")
         personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
         lingua = st.selectbox("🌐 Lingua", ["Italiano", "English", "Español", "Français", "Deutsch"])
         st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
-        
         st.write("---")
         st.markdown("### 💬 Canali di Sistema")
-        
         for canale in canali_fissi:
             is_active = (canale == st.session_state.current_chat)
-            button_type = "primary" if is_active else "secondary"
-            if st.button(canale, use_container_width=True, type=button_type):
+            if st.button(canale, use_container_width=True, type="primary" if is_active else "secondary"):
                 st.session_state.current_chat = canale
                 st.rerun()
-                
         st.write("---")
-        
         if st.button("🗑️ Svuota Chat Attiva", use_container_width=True):
             st.session_state.chat_sessions[st.session_state.current_chat] = []
             salva_cronologia(st.session_state.chat_sessions)
             st.rerun()
-
         if st.button("🚪 Esci (Logout)", use_container_width=True):
             st.session_state.logged_in = False
             st.rerun()
-            
         st.caption("🔒 Memoria locale attiva.")
         st.markdown('</div>', unsafe_allow_html=True)
 else:
@@ -238,7 +169,6 @@ else:
     personalita = "Standard (Professionale)"
     lingua = "Italiano"
 
-# --- AREA CHAT ---
 with col_chat:
     if "Tony Stark" in personalita:
         base_prompt = "You are J.A.R.V.I.S., Tony Stark's AI. Answer with a brilliant, sarcastic tone, extremely sharp and tech-savvy."
@@ -264,7 +194,7 @@ with col_chat:
             st.markdown(msg["content"])
 
     st.markdown("<div class='suggestion-container'></div>", unsafe_allow_html=True)
-    st.caption("💡 Suggerimenti del giorno (clicca per inviare):")
+    st.caption("💡 Suggerimenti del giorno (clicca per inviare oppure usa `/img [descrizione]` per generare un'immagine):")
     col_sug1, col_sug2, col_sug3 = st.columns(3)
 
     domanda_cliccata = None
@@ -279,7 +209,6 @@ with col_chat:
             domanda_cliccata = domande_del_giorno[2]
 
     col_pop, col_in = st.columns([1, 15])
-
     with col_pop:
         with st.popover("➕", help="Allega immagine"):
             uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"])
@@ -291,7 +220,7 @@ with col_chat:
                     st.rerun()
 
     with col_in:
-        prompt_digitato = st.chat_input("Scrivi un comando...")
+        prompt_digitato = st.chat_input("Scrivi un comando o /img per generare un'immagine...")
 
     prompt = domanda_cliccata if domanda_cliccata else prompt_digitato
 
@@ -300,27 +229,40 @@ with col_chat:
 
     if prompt:
         messaggi.append({"role": "user", "content": prompt})
-        salva_cronologia(st.session_state.chat_sessions) # Salva subito il messaggio utente
+        salva_cronologia(st.session_state.chat_sessions)
         
         with st.chat_message("user"):
             st.markdown(prompt)
             if st.session_state.uploaded_img_bytes:
                 st.image(st.session_state.uploaded_img_bytes, width=250)
 
-        # --- GESTIONE COMANDI RAPIDI SPECIALI ---
         risposta_rapida = None
+        is_image_gen = False
+        image_url = None
+
         if prompt.strip().lower() == "/ora":
             risposta_rapida = f"⏱️ Orario di sistema attuale: {datetime.now().strftime('%H:%M:%S')}"
         elif prompt.strip().lower() == "/data":
             risposta_rapida = f"📅 Data di sistema attuale: {oggi}"
+        elif prompt.lower().startswith("/img "):
+            is_image_gen = True
+            descrizione_img = prompt[5:].strip()
+            encoded_desc = urllib.parse.quote(descrizione_img)
+            image_url = f"https://image.pollinations.ai/prompt/{encoded_desc}"
+            risposta_rapida = f"🎨 Ecco l'immagine generata per: *{descrizione_img}*"
 
         with st.chat_message("assistant"):
             if risposta_rapida:
                 st.markdown(risposta_rapida)
-                resp = risposta_rapida
+                if is_image_gen and image_url:
+                    st.image(image_url, caption=descrizione_img, use_container_width=True)
+                    resp = f"{risposta_rapida}\n\n![Immagine]({image_url})"
+                else:
+                    resp = risposta_rapida
+                
                 messaggi.append({"role": "assistant", "content": resp})
                 salva_cronologia(st.session_state.chat_sessions)
-                parla_testo(resp)
+                parla_testo(risposta_rapida)
             else:
                 payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
                 try:
@@ -339,7 +281,7 @@ with col_chat:
                     
                     resp = st.write_stream(completion)
                     messaggi.append({"role": "assistant", "content": resp})
-                    salva_cronologia(st.session_state.chat_sessions) # Salva la risposta dell'AI sul file JSON
+                    salva_cronologia(st.session_state.chat_sessions)
                     parla_testo(resp)
                 except Exception as e:
                     st.error(f"Errore di sistema: {e}")
