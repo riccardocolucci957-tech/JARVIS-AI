@@ -6,10 +6,10 @@ import base64
 import io
 import random
 
-# Configurazione della pagina (sidebar impostata di default aperta, ma comprimibile)
+# Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
 
-# Stili CSS avanzati per bloccare la selezione del testo e mantenere le scritte fisse
+# Stili CSS avanzati (rimosso il blocco dell'header così torna visibile il tasto della sidebar)
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -67,7 +67,6 @@ st.markdown("""
 
     #MainMenu {visibility: hidden;} 
     footer {visibility: hidden;}
-    header {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
