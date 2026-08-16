@@ -164,11 +164,11 @@ else:
 # --- AREA CHAT ---
 with col_chat:
     if "Tony Stark" in personalita:
-        base_prompt = "You are J.A.R.V.I.S., Tony Stark's AI. Answer with a sarcastic, brilliant tone."
+        base_prompt = "You are J.A.R.V.I.S., Tony Stark's AI. Answer with a brilliant, sarcastic tone, extremely sharp and tech-savvy."
     elif "Emergenza" in personalita:
         base_prompt = "J.A.R.V.I.S. Emergency Protocol. Answer in a concise, cold, military style."
     else:
-        base_prompt = "J.A.R.V.I.S., advanced AI. Answer professionally, precisely, and helpfully."
+        base_prompt = "J.A.R.V.I.S., advanced AI assistant. Answer professionally, with extreme technical precision and helpfulness."
 
     system_content = f"{base_prompt} Respond strictly in {lingua}. Date: {oggi}."
 
@@ -228,30 +228,11 @@ with col_chat:
             if st.session_state.uploaded_img_bytes:
                 st.image(st.session_state.uploaded_img_bytes, width=250)
 
+        payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
+
         with st.chat_message("assistant"):
-            # Sistema Multi-Agente Collaborativo in tempo reale
-            with st.status("🧠 J.A.R.V.I.S. Multi-Agent Processing...", expanded=True) as status:
+            with st.spinner("Elaborazione in corso..."):
                 try:
-                    st.write("🔍 **Sub-Agente 1:** Analisi logica e scomposizione del comando in corso...")
-                    
-                    # 1. Agente Analista (Llama 3.2 leggero e veloce per la pianificazione)
-                    analyst_messages = [
-                        {"role": "system", "content": "You are JARVIS logic sub-agent. Analyze the user prompt and extract technical requirements or context guidelines in 1 brief sentence."},
-                        {"role": "user", "content": prompt}
-                    ]
-                    analysis_resp = client.chat.completions.create(
-                        model="llama-3.2-3b-preview", 
-                        messages=analyst_messages,
-                        max_tokens=100
-                    ).choices[0].message.content
-                    
-                    st.write(f"💡 *Insight:* {analysis_resp}")
-                    st.write("⚡ **Agente Principale:** Sintesi ed elaborazione della risposta finale...")
-
-                    # 2. Agente Principale (Llama 3.3 / Vision) che riceve l'output del sub-agente
-                    enhanced_system = f"{system_content} [Sub-Agent Analysis Context: {analysis_resp}]"
-                    payload = [{"role": "system", "content": enhanced_system}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
-
                     if st.session_state.uploaded_img_bytes:
                         b64 = base64.b64encode(st.session_state.uploaded_img_bytes).decode()
                         payload[-1] = {
@@ -265,13 +246,10 @@ with col_chat:
                     else:
                         resp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload).choices[0].message.content
                     
-                    status.update(label="✅ Elaborazione completata con successo!", state="complete", expanded=False)
-                    
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
                 except Exception as e:
-                    status.update(label="❌ Errore nei sistemi multi-agente", state="error")
                     st.error(f"Errore di sistema: {e}")
                     
         st.session_state.uploaded_img_bytes = None
