@@ -3,11 +3,28 @@ from groq import Groq
 from datetime import datetime
 from PIL import Image
 import base64
-import io
+import json
+import os
 import random
 
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="collapsed")
+
+# Gestione del file di salvataggio locale delle chat
+HISTORY_FILE = "jarvis_history.json"
+
+def carica_cronologia():
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return None
+    return None
+
+def salva_cronologia(sessions):
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(sessions, f, ensure_ascii=False, indent=4)
 
 # Inizializzazione dello stato di autenticazione e del menu
 if "logged_in" not in st.session_state:
@@ -138,11 +155,16 @@ except:
     st.error("⚠️ Configura GROQ_API_KEY nei Secrets di Streamlit.")
     st.stop()
 
-# Inizializzazione sessione chat
+# Inizializzazione sessione chat (Caricamento da file JSON locale se esiste)
 canali_fissi = ["Chat Principale", "Analisi Tecnica", "Codice e Script"]
 
+saved_sessions = carica_cronologia()
 if "chat_sessions" not in st.session_state:
-    st.session_state.chat_sessions = {canale: [] for canale in canali_fissi}
+    if saved_sessions:
+        st.session_state.chat_sessions = saved_sessions
+    else:
+        st.session_state.chat_sessions = {canale: [] for canale in canali_fissi}
+
 if "current_chat" not in st.session_state:
     st.session_state.current_chat = "Chat Principale"
 if "voce_attiva" not in st.session_state:
@@ -202,13 +224,14 @@ if st.session_state.show_sidebar:
         
         if st.button("🗑️ Svuota Chat Attiva", use_container_width=True):
             st.session_state.chat_sessions[st.session_state.current_chat] = []
+            salva_cronologia(st.session_state.chat_sessions)
             st.rerun()
 
         if st.button("🚪 Esci (Logout)", use_container_width=True):
             st.session_state.logged_in = False
             st.rerun()
             
-        st.caption("🔒 Accesso protetto.")
+        st.caption("🔒 Memoria locale attiva.")
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     col_chat = col_rest
@@ -277,6 +300,8 @@ with col_chat:
 
     if prompt:
         messaggi.append({"role": "user", "content": prompt})
+        salva_cronologia(st.session_state.chat_sessions) # Salva subito il messaggio utente
+        
         with st.chat_message("user"):
             st.markdown(prompt)
             if st.session_state.uploaded_img_bytes:
@@ -294,6 +319,7 @@ with col_chat:
                 st.markdown(risposta_rapida)
                 resp = risposta_rapida
                 messaggi.append({"role": "assistant", "content": resp})
+                salva_cronologia(st.session_state.chat_sessions)
                 parla_testo(resp)
             else:
                 payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
@@ -311,9 +337,9 @@ with col_chat:
                     else:
                         completion = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload, stream=True)
                     
-                    # Scrittura in streaming della risposta (effetto terminale)
                     resp = st.write_stream(completion)
                     messaggi.append({"role": "assistant", "content": resp})
+                    salva_cronologia(st.session_state.chat_sessions) # Salva la risposta dell'AI sul file JSON
                     parla_testo(resp)
                 except Exception as e:
                     st.error(f"Errore di sistema: {e}")
