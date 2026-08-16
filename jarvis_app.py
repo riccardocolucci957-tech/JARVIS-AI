@@ -3,83 +3,96 @@ from groq import Groq
 from datetime import datetime
 from PIL import Image
 import base64
-import json
-import os
+import io
 import random
 
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="collapsed")
 
-# Gestione del file di salvataggio locale delle chat
-HISTORY_FILE = "jarvis_history.json"
-
-def carica_cronologia():
-    if os.path.exists(HISTORY_FILE):
-        try:
-            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return None
-    return None
-
-def salva_cronologia(sessions):
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(sessions, f, ensure_ascii=False, indent=4)
-
-# Inizializzazione dello stato di autenticazione e del menu
+# Inizializzazione degli stati globali
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+if "registered_users" not in st.session_state:
+    # Utente di default pre-registrato per testare subito
+    st.session_state.registered_users = {"admin@jarvis.com": "stark123"}
+if "current_user" not in st.session_state:
+    st.session_state.current_user = ""
 if "show_sidebar" not in st.session_state:
     st.session_state.show_sidebar = False
 
-# --- SCHERMATA DI ACCESSO / REGISTRAZIONE (GOOGLE & APPLE) ---
+# --- SCHERMATA DI ACCESSO / REGISTRAZIONE IN STILE CHATGPT / GEMINI ---
 if not st.session_state.logged_in:
     st.markdown("""
         <style>
         .stApp { background-color: #0e1117; }
-        .login-card {
+        .auth-card {
             background-color: #161b22;
-            padding: 40px;
-            border-radius: 15px;
+            padding: 30px;
+            border-radius: 12px;
             border: 1px solid rgba(0,204,255,0.3);
-            text-align: center;
             box-shadow: 0 0 20px rgba(0,204,255,0.1);
         }
-        .login-title {
+        .auth-title {
             color: #00ccff;
+            text-align: center;
             font-family: 'Courier New', monospace;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
-        .login-subtitle {
+        .auth-subtitle {
             color: #8b949e;
-            font-size: 14px;
-            margin-bottom: 30px;
+            text-align: center;
+            font-size: 13px;
+            margin-bottom: 25px;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
-    with col_l2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
+    col_a1, col_a2, col_a3 = st.columns([1, 1.2, 1])
+    with col_a2:
+        st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("""
-            <div class="login-card">
-                <h1 class="login-title">🤖 J.A.R.V.I.S.</h1>
-                <p class="login-subtitle">Autenticazione di Sicurezza Richiesta</p>
+            <div class="auth-card">
+                <h1 class="auth-title">🤖 J.A.R.V.I.S.</h1>
+                <p class="auth-subtitle">Autenticazione richiesta per accedere ai sistemi</p>
             </div>
         """, unsafe_allow_html=True)
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        if st.button("🌐 Accedi / Registrati con Google", use_container_width=True):
-            st.session_state.logged_in = True
-            st.rerun()
+        tab_login, tab_register = st.tabs(["🔑 Accedi", "📝 Registrati"])
+        
+        with tab_login:
+            email_login = st.text_input("Email", key="login_email")
+            pass_login = st.text_input("Password", type="password", key="login_pass")
             
-        if st.button(" Accedi / Registrati con Apple", use_container_width=True):
-            st.session_state.logged_in = True
-            st.rerun()
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Entra in J.A.R.V.I.S.", use_container_width=True, type="primary"):
+                if email_login in st.session_state.registered_users and st.session_state.registered_users[email_login] == pass_login:
+                    st.session_state.logged_in = True
+                    st.session_state.current_user = email_login
+                    st.rerun()
+                else:
+                    st.error("❌ Email o password errate.")
+                    
+        with tab_register:
+            email_reg = st.text_input("Nuova Email", key="reg_email")
+            pass_reg = st.text_input("Crea Password", type="password", key="reg_pass")
             
-    st.stop()
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Registrati e Accedi", use_container_width=True):
+                if not email_reg or not pass_reg:
+                    st.warning("⚠️ Compila tutti i campi.")
+                elif email_reg in st.session_state.registered_users:
+                    st.warning("⚠️ Esiste già un account con questa email.")
+                else:
+                    st.session_state.registered_users[email_reg] = pass_reg
+                    st.session_state.logged_in = True
+                    st.session_state.current_user = email_reg
+                    st.success("Registrazione completata!")
+                    st.rerun()
+                    
+    st.stop()  # Blocca l'esecuzione dell'app principale finché non si effettua l'accesso
 
 # --- STILI CSS GENERALI DELL'APP ---
 st.markdown("""
@@ -155,16 +168,11 @@ except:
     st.error("⚠️ Configura GROQ_API_KEY nei Secrets di Streamlit.")
     st.stop()
 
-# Inizializzazione sessione chat (Caricamento da file JSON locale se esiste)
+# Inizializzazione sessione chat
 canali_fissi = ["Chat Principale", "Analisi Tecnica", "Codice e Script"]
 
-saved_sessions = carica_cronologia()
 if "chat_sessions" not in st.session_state:
-    if saved_sessions:
-        st.session_state.chat_sessions = saved_sessions
-    else:
-        st.session_state.chat_sessions = {canale: [] for canale in canali_fissi}
-
+    st.session_state.chat_sessions = {canale: [] for canale in canali_fissi}
 if "current_chat" not in st.session_state:
     st.session_state.current_chat = "Chat Principale"
 if "voce_attiva" not in st.session_state:
@@ -205,6 +213,8 @@ if st.session_state.show_sidebar:
     
     with col_menu:
         st.markdown('<div class="menu-container">', unsafe_allow_html=True)
+        st.markdown(f"👤 **Account:**<br>`{st.session_state.current_user}`", unsafe_allow_html=True)
+        st.write("---")
         st.markdown("### ⚙️ Controllo")
         personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
         lingua = st.selectbox("🌐 Lingua", ["Italiano", "English", "Español", "Français", "Deutsch"])
@@ -224,14 +234,14 @@ if st.session_state.show_sidebar:
         
         if st.button("🗑️ Svuota Chat Attiva", use_container_width=True):
             st.session_state.chat_sessions[st.session_state.current_chat] = []
-            salva_cronologia(st.session_state.chat_sessions)
             st.rerun()
 
         if st.button("🚪 Esci (Logout)", use_container_width=True):
             st.session_state.logged_in = False
+            st.session_state.current_user = ""
             st.rerun()
             
-        st.caption("🔒 Memoria locale attiva.")
+        st.caption("🔒 Sistema protetto.")
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     col_chat = col_rest
@@ -300,29 +310,15 @@ with col_chat:
 
     if prompt:
         messaggi.append({"role": "user", "content": prompt})
-        salva_cronologia(st.session_state.chat_sessions) # Salva subito il messaggio utente
-        
         with st.chat_message("user"):
             st.markdown(prompt)
             if st.session_state.uploaded_img_bytes:
                 st.image(st.session_state.uploaded_img_bytes, width=250)
 
-        # --- GESTIONE COMANDI RAPIDI SPECIALI ---
-        risposta_rapida = None
-        if prompt.strip().lower() == "/ora":
-            risposta_rapida = f"⏱️ Orario di sistema attuale: {datetime.now().strftime('%H:%M:%S')}"
-        elif prompt.strip().lower() == "/data":
-            risposta_rapida = f"📅 Data di sistema attuale: {oggi}"
+        payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
 
         with st.chat_message("assistant"):
-            if risposta_rapida:
-                st.markdown(risposta_rapida)
-                resp = risposta_rapida
-                messaggi.append({"role": "assistant", "content": resp})
-                salva_cronologia(st.session_state.chat_sessions)
-                parla_testo(resp)
-            else:
-                payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
+            with st.spinner("Elaborazione in corso..."):
                 try:
                     if st.session_state.uploaded_img_bytes:
                         b64 = base64.b64encode(st.session_state.uploaded_img_bytes).decode()
@@ -333,13 +329,12 @@ with col_chat:
                                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
                             ]
                         }
-                        completion = client.chat.completions.create(model="llama-3.2-90b-vision-instruct", messages=payload, stream=True)
+                        resp = client.chat.completions.create(model="llama-3.2-90b-vision-instruct", messages=payload).choices[0].message.content
                     else:
-                        completion = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload, stream=True)
+                        resp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload).choices[0].message.content
                     
-                    resp = st.write_stream(completion)
+                    st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
-                    salva_cronologia(st.session_state.chat_sessions) # Salva la risposta dell'AI sul file JSON
                     parla_testo(resp)
                 except Exception as e:
                     st.error(f"Errore di sistema: {e}")
