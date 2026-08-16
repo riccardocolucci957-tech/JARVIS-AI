@@ -9,7 +9,7 @@ import random
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
 
-# Stili CSS avanzati (rimosso il blocco dell'header così torna visibile il tasto della sidebar)
+# Stili CSS avanzati
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -113,6 +113,7 @@ with st.sidebar:
     st.title("⚙️ Controllo")
     personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
     st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
+    
     st.write("---")
     st.title("💬 Canali di Sistema")
     
@@ -124,6 +125,12 @@ with st.sidebar:
             st.rerun()
             
     st.write("---")
+    
+    # Pulsante per resettare la chat attiva
+    if st.button("🗑️ Svuota Chat Attiva", use_container_width=True):
+        st.session_state.chat_sessions[st.session_state.current_chat] = []
+        st.rerun()
+        
     st.caption("🔒 Configurazione protetta da amministratore.")
 
 # --- LOGICA PERSONALITA ---
