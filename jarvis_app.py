@@ -9,7 +9,7 @@ import random
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
 
-# Stili CSS puliti: nasconde solo gli elementi specifici a destra senza toccare il lato sinistro
+# Stili CSS puliti (lasciamo visibile l'header così il tasto in alto a sinistra c'è sempre)
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -61,14 +61,8 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    /* Target mirato esclusivamente ai bottoni a destra nell'header */
-    header [data-testid="stToolbar"] { display: none !important; }
-    .stDeployButton { display: none !important; }
     #MainMenu { visibility: hidden !important; display: none !important; } 
     footer { visibility: hidden !important; display: none !important; }
-    
-    /* Nasconde i pulsanti specifici di condivisione e GitHub in alto a destra senza toccare la sinistra */
-    header . esposo, [data-testid="stHeader"] [kind="header"] { display: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
