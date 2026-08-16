@@ -9,7 +9,7 @@ import random
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
 
-# Stili CSS avanzati con animazioni per i suggerimenti e la HUD
+# Stili CSS avanzati per rimuovere il badge di GitHub in alto a destra e pulire l'interfaccia
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -46,8 +46,14 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
+    /* Rimozione totale di qualsiasi icona o badge di GitHub in alto a destra */
+    #GithubIcon, .github-corner, a[href*="github.com"] {{
+        display: none !important;
+    }}
+
     #MainMenu {visibility: hidden;} 
     footer {visibility: hidden;}
+    header {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -69,8 +75,6 @@ if "voce_attiva" not in st.session_state:
     st.session_state.voce_attiva = True
 if "uploaded_img_bytes" not in st.session_state:
     st.session_state.uploaded_img_bytes = None
-if "prompt_inviato" not in st.session_state:
-    st.session_state.prompt_inviato = ""
 
 oggi = datetime.now().strftime("%d/%m/%Y")
 giorno_seed = datetime.now().strftime("%Y%m%d")
@@ -88,7 +92,6 @@ bancomat_domande = [
     "Quali sono le priorità operative per oggi?"
 ]
 
-# Impostiamo il seed basato sulla data odierna così cambiano ogni giorno in modo fisso
 random.seed(giorno_seed)
 domande_del_giorno = random.sample(bancomat_domande, 3)
 
@@ -133,7 +136,7 @@ for msg in messaggi:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- SUGGERIMENTI RAPIDI GIORNALIERI (ANIMATI SOPRA LA CHAT) ---
+# --- SUGGERIMENTI RAPIDI GIORNALIERI ---
 st.markdown("<div class='suggestion-container'></div>", unsafe_allow_html=True)
 st.caption("💡 Suggerimenti del giorno (clicca per inviare):")
 col_sug1, col_sug2, col_sug3 = st.columns(3)
@@ -165,7 +168,6 @@ with col_pop:
 with col_in:
     prompt_digitato = st.chat_input("Inserisci un comando per J.A.R.V.I.S. ...")
 
-# Gestione dell'input (proveniente dalla barra o dai pulsanti rapidi)
 prompt = domanda_cliccata if domanda_cliccata else prompt_digitato
 
 if st.session_state.uploaded_img_bytes:
@@ -204,3 +206,4 @@ if prompt:
                 
     st.session_state.uploaded_img_bytes = None
     st.rerun()
+    
