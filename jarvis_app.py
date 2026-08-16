@@ -7,9 +7,13 @@ import io
 import random
 
 # Configurazione della pagina
-st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="collapsed")
 
-# Stili CSS definitivi: nasconde solo la toolbar a destra e lascia libero il tasto in alto a sinistra
+# Gestione stato visibilità sidebar
+if "show_sidebar" not in st.session_state:
+    st.session_state.show_sidebar = True
+
+# Stili CSS puliti: nasconde del tutto la barra nativa di Streamlit a destra
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -47,6 +51,7 @@ st.markdown("""
         animation: fadeIn 1.2s ease-out, glow 3s infinite;
         letter-spacing: 2px;
         pointer-events: none;
+        margin-top: -10px;
     }
 
     .stChatMessage { 
@@ -61,11 +66,16 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    /* Rimuove i bottoni a destra (Share, stella, GitHub) senza toccare l'header di sinistra */
+    /* Nasconde l'header nativo in alto a destra */
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stDecoration"] { display: none !important; }
     #MainMenu { visibility: hidden !important; display: none !important; } 
     footer { visibility: hidden !important; display: none !important; }
+    
+    /* Applica lo stato della sidebar dinamico */
+    [data-testid="stSidebar"] {
+        display: """ + ("block" if st.session_state.show_sidebar else "none") + """ !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -108,29 +118,42 @@ random.seed(giorno_seed)
 domande_del_giorno = random.sample(bancomat_domande, 3)
 
 # --- SIDEBAR (TENDINA A SINISTRA) ---
-with st.sidebar:
-    st.title("⚙️ Controllo")
-    personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
-    lingua = st.selectbox("🌐 Lingua", ["Italiano", "English", "Español", "Français", "Deutsch"])
-    st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
-    
-    st.write("---")
-    st.title("💬 Canali di Sistema")
-    
-    for canale in canali_fissi:
-        is_active = (canale == st.session_state.current_chat)
-        button_type = "primary" if is_active else "secondary"
-        if st.button(canale, use_container_width=True, type=button_type):
-            st.session_state.current_chat = canale
+if st.session_state.show_sidebar:
+    with st.sidebar:
+        st.title("⚙️ Controllo")
+        personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
+        lingua = st.selectbox("🌐 Lingua", ["Italiano", "English", "Español", "Français", "Deutsch"])
+        st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
+        
+        st.write("---")
+        st.title("💬 Canali di Sistema")
+        
+        for canale in canali_fissi:
+            is_active = (canale == st.session_state.current_chat)
+            button_type = "primary" if is_active else "secondary"
+            if st.button(canale, use_container_width=True, type=button_type):
+                st.session_state.current_chat = canale
+                st.rerun()
+                
+        st.write("---")
+        
+        if st.button("🗑️ Svuota Chat Attiva", use_container_width=True):
+            st.session_state.chat_sessions[st.session_state.current_chat] = []
             st.rerun()
             
-    st.write("---")
-    
-    if st.button("🗑️ Svuota Chat Attiva", use_container_width=True):
-        st.session_state.chat_sessions[st.session_state.current_chat] = []
+        st.caption("🔒 Configurazione protetta da amministratore.")
+else:
+    # Valori di default se la sidebar è chiusa
+    personalita = "Standard (Professionale)"
+    lingua = "Italiano"
+
+# --- BARRA SUPERIORE CON PULSANTE PER APRIRE/CHIUDERE LA SIDEBAR ---
+col_toggle, col_empty = st.columns([1, 10])
+with col_toggle:
+    btn_label = "◀ Menu" if st.session_state.show_sidebar else "☰ Menu"
+    if st.button(btn_label, help="Mostra/Nascondi Menu"):
+        st.session_state.show_sidebar = not st.session_state.show_sidebar
         st.rerun()
-        
-    st.caption("🔒 Configurazione protetta da amministratore.")
 
 # --- LOGICA PERSONALITA E LINGUA ---
 if "Tony Stark" in personalita:
