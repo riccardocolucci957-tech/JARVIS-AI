@@ -9,7 +9,7 @@ import random
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
 
-# Stili CSS mirati: nasconde solo i menu a destra e lascia intatto il pulsante della sidebar a sinistra
+# Stili CSS mirati per eliminare solo i pulsanti in alto a destra lasciando libero il lato sinistro
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -61,11 +61,16 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    /* Nasconde solo i menu in alto a destra, il footer e il branding */
+    /* Nasconde i pulsanti di condivisione, editing e GitHub in alto a destra */
+    header [data-testid="stToolbar"] { display: none !important; }
+    .stDeployButton { display: none !important; }
+    #GithubIcon, .github-corner, a[href*="github.com"] { display: none !important; }
     #MainMenu { visibility: hidden !important; display: none !important; } 
     footer { visibility: hidden !important; display: none !important; }
-    .stToolbar { display: none !important; }
-    div[data-testid="stDecoration"] { display: none !important; }
+    
+    /* Target specifico per i bottoni a destra nell'header di Streamlit */
+    header div.stActionButton { display: none !important; }
+    header div.ef3psn0 { display: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
