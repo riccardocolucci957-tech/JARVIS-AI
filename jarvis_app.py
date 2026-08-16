@@ -6,15 +6,14 @@ import base64
 import io
 import random
 
-# Configurazione della pagina
-st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
+# Configurazione della pagina (sidebar impostata di default aperta, ma comprimibile)
+st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
 
-# Stili CSS avanzati per bloccare la selezione del testo e rendere le scritte fisse/non modificabili
+# Stili CSS avanzati per bloccare la selezione del testo e mantenere le scritte fisse
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
     
-    /* Blocco totale della selezione del testo e degli elementi con il mouse */
     * {
         -webkit-user-select: none;
         -moz-user-select: none;
@@ -22,7 +21,6 @@ st.markdown("""
         user-select: none;
     }
 
-    /* Permettiamo di selezionare solo il testo dentro la chat e la casella di scrittura per comodità */
     .stChatMessage, input, textarea {
         -webkit-user-select: text !important;
         -moz-user-select: text !important;
@@ -111,7 +109,7 @@ bancomat_domande = [
 random.seed(giorno_seed)
 domande_del_giorno = random.sample(bancomat_domande, 3)
 
-# --- SIDEBAR PULITA E ORDINATA ---
+# --- SIDEBAR (TENDINA A SINISTRA) ---
 with st.sidebar:
     st.title("⚙️ Controllo")
     personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
@@ -222,4 +220,3 @@ if prompt:
                 
     st.session_state.uploaded_img_bytes = None
     st.rerun()
-    
