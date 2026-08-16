@@ -9,7 +9,7 @@ import random
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
 
-# Stili CSS avanzati
+# Stili CSS avanzati per nascondere menu e pulsanti in alto a destra
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -61,12 +61,12 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    #GithubIcon, .github-corner, a[href*="github.com"] {
-        display: none !important;
-    }
-
-    #MainMenu {visibility: hidden;} 
-    footer {visibility: hidden;}
+    /* Rimozione totale elementi in alto a destra e footer */
+    #GithubIcon, .github-corner, a[href*="github.com"] { display: none !important; }
+    #MainMenu { visibility: hidden !important; display: none !important; } 
+    footer { visibility: hidden !important; display: none !important; }
+    header { visibility: hidden !important; display: none !important; }
+    .stToolbar { display: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
