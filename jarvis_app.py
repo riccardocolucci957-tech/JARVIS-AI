@@ -6,10 +6,10 @@ import base64
 import io
 import random
 
-# Configurazione della pagina
+# Configurazione della pagina (sidebar impostata di default aperta, ma comprimibile)
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
 
-# Stili CSS avanzati per nascondere menu e pulsanti in alto a destra
+# Stili CSS avanzati (senza nascondere l'header, così il tasto della sidebar resta visibile)
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -61,11 +61,9 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    /* Rimozione totale elementi in alto a destra e footer */
     #GithubIcon, .github-corner, a[href*="github.com"] { display: none !important; }
     #MainMenu { visibility: hidden !important; display: none !important; } 
     footer { visibility: hidden !important; display: none !important; }
-    header { visibility: hidden !important; display: none !important; }
     .stToolbar { display: none !important; }
     </style>
 """, unsafe_allow_html=True)
