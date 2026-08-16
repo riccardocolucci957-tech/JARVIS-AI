@@ -9,7 +9,7 @@ import random
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide")
 
-# Stili CSS avanzati per rimuovere il badge di GitHub in alto a destra e pulire l'interfaccia
+# Stili CSS avanzati con effetti visivi e animazioni HUD
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -46,10 +46,9 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    /* Rimozione totale di qualsiasi icona o badge di GitHub in alto a destra */
-    #GithubIcon, .github-corner, a[href*="github.com"] {{
+    #GithubIcon, .github-corner, a[href*="github.com"] {
         display: none !important;
-    }}
+    }
 
     #MainMenu {visibility: hidden;} 
     footer {visibility: hidden;}
@@ -121,7 +120,7 @@ elif "Emergenza" in personalita:
 else:
     system_content = f"J.A.R.V.I.S., IA avanzata. Rispondi in modo professionale, preciso e disponibile. Data: {oggi}."
 
-# --- FUNZIONE VOCE ---
+# --- FUNZIONE VOCE (TTS) ---
 def parla_testo(testo):
     if st.session_state.voce_attiva:
         t = testo.replace('"', "'").replace('\n', ' ')
@@ -152,8 +151,8 @@ with col_sug3:
     if st.button(domande_del_giorno[2], use_container_width=True):
         domanda_cliccata = domande_del_giorno[2]
 
-# --- AREA DI INPUT CON POPOVER "+" PER IMMAGINE ---
-col_pop, col_in = st.columns([1, 15])
+# --- AREA DI INPUT CON POPOVER "+" (IMMAGINE) E PULSANTE MICROFONO VOCALE ---
+col_pop, col_mic, col_in = st.columns([1, 1, 15])
 
 with col_pop:
     with st.popover("➕", help="Allega immagine"):
@@ -165,8 +164,57 @@ with col_pop:
                 st.session_state.uploaded_img_bytes = None
                 st.rerun()
 
+with col_mic:
+    # Componente HTML/JS per la dettatura vocale tramite Web Speech API del browser
+    mic_html = """
+    <div style="text-align: center;">
+        <button id="micBtn" onclick="startDictation()" style="background-color: #1a1a1a; color: #00ccff; border: 1px solid #00ccff; border-radius: 5px; padding: 6px 10px; cursor: pointer; font-size: 16px;" title="Attiva microfono">🎤</button>
+    </div>
+    <script>
+        function startDictation() {
+            if (window.hasOwnProperty('webkitSpeechRecognition')) {
+                var recognition = new webkitSpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = "it-IT";
+                
+                document.getElementById('micBtn').style.backgroundColor = '#00ccff';
+                document.getElementById('micBtn').style.color = '#000';
+                
+                recognition.onresult = function(e) {
+                    var text = e.results[0][0].transcript;
+                    // Troviamo l'input di Streamlit nella pagina per inserire il testo dettato
+                    const inputElem = window.parent.document.querySelector('input[type="text"]');
+                    if (inputElem) {
+                        inputElem.value = text;
+                        inputElem.dispatchEvent(new Event('input', { bubbles: true }));
+                        // Simula invio premendo Invio
+                        setTimeout(() => {
+                            inputElem.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true}));
+                        }, 500);
+                    }
+                    document.getElementById('micBtn').style.backgroundColor = '#1a1a1a';
+                    document.getElementById('micBtn').style.color = '#00ccff';
+                    recognition.stop();
+                };
+                
+                recognition.onerror = function(e) {
+                    document.getElementById('micBtn').style.backgroundColor = '#1a1a1a';
+                    document.getElementById('micBtn').style.color = '#00ccff';
+                    recognition.stop();
+                };
+                
+                recognition.start();
+            } else {
+                alert("La dettatura vocale non è supportata da questo browser. Usa Google Chrome o Safari.");
+            }
+        }
+    </script>
+    """
+    st.components.v1.html(mic_html, height=45)
+
 with col_in:
-    prompt_digitato = st.chat_input("Inserisci un comando per J.A.R.V.I.S. ...")
+    prompt_digitato = st.chat_input("Inserisci un comando o detta con il microfono...")
 
 prompt = domanda_cliccata if domanda_cliccata else prompt_digitato
 
