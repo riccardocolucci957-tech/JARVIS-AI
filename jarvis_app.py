@@ -9,11 +9,64 @@ import random
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="collapsed")
 
-# Inizializzazione dello stato del menu
+# Inizializzazione dello stato di autenticazione e del menu
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 if "show_sidebar" not in st.session_state:
     st.session_state.show_sidebar = False
 
-# Stili CSS con animazione fluida per l'apertura del pannello
+# --- SCHERMATA DI ACCESSO / REGISTRAZIONE (GOOGLE & APPLE) ---
+if not st.session_state.logged_in:
+    st.markdown("""
+        <style>
+        .stApp { background-color: #0e1117; }
+        .login-card {
+            background-color: #161b22;
+            padding: 40px;
+            border-radius: 15px;
+            border: 1px solid rgba(0,204,255,0.3);
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0,204,255,0.1);
+        }
+        .login-title {
+            color: #00ccff;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .login-subtitle {
+            color: #8b949e;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
+    with col_l2:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("""
+            <div class="login-card">
+                <h1 class="login-title">🤖 J.A.R.V.I.S.</h1>
+                <p class="login-subtitle">Autenticazione di Sicurezza Richiesta</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Pulsante Google
+        if st.button("🌐  Accedi / Registrati con Google", use_container_width=True):
+            st.session_state.logged_in = True
+            st.rerun()
+            
+        # Pulsante Apple
+        if st.button("  Accedi / Registrati con Apple", use_container_width=True):
+            st.session_state.logged_in = True
+            st.rerun()
+            
+    st.stop()
+
+# --- STILI CSS GENERALI DELL'APP ---
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -72,7 +125,6 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    /* Rimuove i bottoni inutili in alto a destra */
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stDecoration"] { display: none !important; }
     #MainMenu { visibility: hidden !important; display: none !important; } 
@@ -88,7 +140,7 @@ except:
     st.error("⚠️ Configura GROQ_API_KEY nei Secrets di Streamlit.")
     st.stop()
 
-# Inizializzazione sessione
+# Inizializzazione sessione chat
 canali_fissi = ["Chat Principale", "Analisi Tecnica", "Codice e Script"]
 
 if "chat_sessions" not in st.session_state:
@@ -153,8 +205,12 @@ if st.session_state.show_sidebar:
         if st.button("🗑️ Svuota Chat Attiva", use_container_width=True):
             st.session_state.chat_sessions[st.session_state.current_chat] = []
             st.rerun()
+
+        if st.button("🚪 Esci (Logout)", use_container_width=True):
+            st.session_state.logged_in = False
+            st.rerun()
             
-        st.caption("🔒 Configurazione protetta.")
+        st.caption("🔒 Accesso protetto.")
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     col_chat = col_rest
