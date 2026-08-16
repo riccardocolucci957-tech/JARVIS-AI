@@ -189,7 +189,7 @@ with col_pop:
                 st.rerun()
 
 with col_in:
-    prompt_digitato = st.chat_input("Scrivi un comando o usa il microfono della tastiera...")
+    prompt_digitato = st.chat_input("Scrivi un comando...")
 
 prompt = domanda_cliccata if domanda_cliccata else prompt_digitato
 
