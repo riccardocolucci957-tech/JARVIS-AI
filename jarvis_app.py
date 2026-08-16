@@ -112,6 +112,7 @@ domande_del_giorno = random.sample(bancomat_domande, 3)
 with st.sidebar:
     st.title("⚙️ Controllo")
     personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
+    lingua = st.selectbox("🌐 Lingua", ["Italiano", "English", "Español", "Français", "Deutsch"])
     st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
     
     st.write("---")
@@ -126,26 +127,28 @@ with st.sidebar:
             
     st.write("---")
     
-    # Pulsante per resettare la chat attiva
     if st.button("🗑️ Svuota Chat Attiva", use_container_width=True):
         st.session_state.chat_sessions[st.session_state.current_chat] = []
         st.rerun()
         
     st.caption("🔒 Configurazione protetta da amministratore.")
 
-# --- LOGICA PERSONALITA ---
+# --- LOGICA PERSONALITA E LINGUA ---
 if "Tony Stark" in personalita:
-    system_content = f"Sei J.A.R.V.I.S., AI di Tony Stark. Rispondi in italiano con tono sarcastico, geniale. Data: {oggi}."
+    base_prompt = "You are J.A.R.V.I.S., Tony Stark's AI. Answer with a sarcastic, brilliant tone."
 elif "Emergenza" in personalita:
-    system_content = f"J.A.R.V.I.S. Protocollo Emergenza. Rispondi in modo sintetico, freddo, militare. Data: {oggi}."
+    base_prompt = "J.A.R.V.I.S. Emergency Protocol. Answer in a concise, cold, military style."
 else:
-    system_content = f"J.A.R.V.I.S., IA avanzata. Rispondi in modo professionale, preciso e disponibile. Data: {oggi}."
+    base_prompt = "J.A.R.V.I.S., advanced AI. Answer professionally, precisely, and helpfully."
+
+system_content = f"{base_prompt} Respond strictly in {lingua}. Date: {oggi}."
 
 # --- FUNZIONE VOCE (TTS) ---
 def parla_testo(testo):
     if st.session_state.voce_attiva:
         t = testo.replace('"', "'").replace('\n', ' ')
-        st.components.v1.html(f'<script>const s=window.speechSynthesis; const u=new SpeechSynthesisUtterance("{t}"); u.lang="it-IT"; s.speak(u);</script>', height=0)
+        codice_lingua = {"Italiano": "it-IT", "English": "en-US", "Español": "es-ES", "Français": "fr-FR", "Deutsch": "de-DE"}.get(lingua, "it-IT")
+        st.components.v1.html(f'<script>const s=window.speechSynthesis; const u=new SpeechSynthesisUtterance("{t}"); u.lang="{codice_lingua}"; s.speak(u);</script>', height=0)
 
 # --- INTERFACCIA CHAT PRINCIPALE CON TITOLO ANIMATO ---
 st.markdown(f"<h1 class='jarvis-title'>🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]</h1>", unsafe_allow_html=True)
