@@ -1,19 +1,69 @@
 import streamlit as st
 from groq import Groq
 from datetime import datetime
-from PIL import Image
 import base64
-import io
 import random
+import json
 
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="collapsed")
 
-# Inizializzazione dello stato del menu
+# Inizializzazione dello stato di autenticazione e del menu
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 if "show_sidebar" not in st.session_state:
     st.session_state.show_sidebar = False
 
-# Stili CSS con animazione fluida per l'apertura del pannello
+# --- SCHERMATA DI ACCESSO / REGISTRAZIONE ---
+if not st.session_state.logged_in:
+    st.markdown("""
+        <style>
+        .stApp { background-color: #0e1117; }
+        .login-card {
+            background-color: #161b22;
+            padding: 40px;
+            border-radius: 15px;
+            border: 1px solid rgba(0,204,255,0.3);
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0,204,255,0.1);
+        }
+        .login-title {
+            color: #00ccff;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .login-subtitle {
+            color: #8b949e;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
+    with col_l2:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("""
+            <div class="login-card">
+                <h1 class="login-title">🤖 J.A.R.V.I.S.</h1>
+                <p class="login-subtitle">Autenticazione di Sicurezza Richiesta</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        if st.button("🌐 Accedi / Registrati con Google", use_container_width=True):
+            st.session_state.logged_in = True
+            st.rerun()
+            
+        if st.button("🍎 Accedi / Registrati con Apple", use_container_width=True):
+            st.session_state.logged_in = True
+            st.rerun()
+            
+    st.stop()
+
+# --- STILI CSS GENERALI DELL'APP ---
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -72,7 +122,6 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    /* Rimuove i bottoni inutili in alto a destra */
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stDecoration"] { display: none !important; }
     #MainMenu { visibility: hidden !important; display: none !important; } 
@@ -84,11 +133,11 @@ st.markdown("""
 # Recupero API Key protetta
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except:
+except Exception:
     st.error("⚠️ Configura GROQ_API_KEY nei Secrets di Streamlit.")
     st.stop()
 
-# Inizializzazione sessione
+# Inizializzazione sessione chat e variabili di stato
 canali_fissi = ["Chat Principale", "Analisi Tecnica", "Codice e Script"]
 
 if "chat_sessions" not in st.session_state:
@@ -99,6 +148,8 @@ if "voce_attiva" not in st.session_state:
     st.session_state.voce_attiva = True
 if "uploaded_img_bytes" not in st.session_state:
     st.session_state.uploaded_img_bytes = None
+if "pending_prompt" not in st.session_state:
+    st.session_state.pending_prompt = None
 
 oggi = datetime.now().strftime("%d/%m/%Y")
 giorno_seed = datetime.now().strftime("%Y%m%d")
@@ -153,8 +204,12 @@ if st.session_state.show_sidebar:
         if st.button("🗑️ Svuota Chat Attiva", use_container_width=True):
             st.session_state.chat_sessions[st.session_state.current_chat] = []
             st.rerun()
+
+        if st.button("🚪 Esci (Logout)", use_container_width=True):
+            st.session_state.logged_in = False
+            st.rerun()
             
-        st.caption("🔒 Configurazione protetta.")
+        st.caption("🔒 Accesso protetto.")
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     col_chat = col_rest
@@ -174,9 +229,17 @@ with col_chat:
 
     def parla_testo(testo):
         if st.session_state.voce_attiva:
-            t = testo.replace('"', "'").replace('\n', ' ')
+            # Pulizia e serializzazione sicura in JSON per evitare errori in JS
+            safe_text = json.dumps(testo)
             codice_lingua = {"Italiano": "it-IT", "English": "en-US", "Español": "es-ES", "Français": "fr-FR", "Deutsch": "de-DE"}.get(lingua, "it-IT")
-            st.components.v1.html(f'<script>const s=window.speechSynthesis; const u=new SpeechSynthesisUtterance("{t}"); u.lang="{codice_lingua}"; s.speak(u);</script>', height=0)
+            st.components.v1.html(f'''
+                <script>
+                    const s = window.speechSynthesis;
+                    const u = new SpeechSynthesisUtterance({safe_text});
+                    u.lang = "{codice_lingua}";
+                    s.speak(u);
+                </script>
+            ''', height=0)
 
     st.markdown(f"<h1 class='jarvis-title'>🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]</h1>", unsafe_allow_html=True)
 
@@ -185,21 +248,25 @@ with col_chat:
     for msg in messaggi:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+            if msg.get("has_image"):
+                st.image(msg["has_image"], width=250)
 
     st.markdown("<div class='suggestion-container'></div>", unsafe_allow_html=True)
     st.caption("💡 Suggerimenti del giorno (clicca per inviare):")
     col_sug1, col_sug2, col_sug3 = st.columns(3)
 
-    domanda_cliccata = None
     with col_sug1:
         if st.button(domande_del_giorno[0], use_container_width=True):
-            domanda_cliccata = domande_del_giorno[0]
+            st.session_state.pending_prompt = domande_del_giorno[0]
+            st.rerun()
     with col_sug2:
         if st.button(domande_del_giorno[1], use_container_width=True):
-            domanda_cliccata = domande_del_giorno[1]
+            st.session_state.pending_prompt = domande_del_giorno[1]
+            st.rerun()
     with col_sug3:
         if st.button(domande_del_giorno[2], use_container_width=True):
-            domanda_cliccata = domande_del_giorno[2]
+            st.session_state.pending_prompt = domande_del_giorno[2]
+            st.rerun()
 
     col_pop, col_in = st.columns([1, 15])
 
@@ -209,32 +276,44 @@ with col_chat:
             if uploaded_file:
                 st.session_state.uploaded_img_bytes = uploaded_file.getvalue()
                 st.image(st.session_state.uploaded_img_bytes, width=150, caption="Pronta")
-                if st.button("Rimuovi"):
+            if st.session_state.uploaded_img_bytes is not None:
+                if st.button("Rimuovi Immagine"):
                     st.session_state.uploaded_img_bytes = None
                     st.rerun()
 
     with col_in:
         prompt_digitato = st.chat_input("Scrivi un comando...")
 
-    prompt = domanda_cliccata if domanda_cliccata else prompt_digitato
+    # Gestione unificata dell'input (da tastiera, suggerimento o pending)
+    prompt = st.session_state.pending_prompt if st.session_state.pending_prompt else prompt_digitato
+    # Resettiamo il pending subito dopo averlo catturato
+    st.session_state.pending_prompt = None
 
     if st.session_state.uploaded_img_bytes:
         st.info("📎 Immagine allegata e pronta per l'invio.")
 
     if prompt:
-        messaggi.append({"role": "user", "content": prompt})
+        current_img_bytes = st.session_state.uploaded_img_bytes
+        
+        # Aggiungiamo il messaggio utente allo storico
+        msg_data = {"role": "user", "content": prompt}
+        if current_img_bytes:
+            msg_data["has_image"] = current_img_bytes
+            
+        messaggi.append(msg_data)
+        
         with st.chat_message("user"):
             st.markdown(prompt)
-            if st.session_state.uploaded_img_bytes:
-                st.image(st.session_state.uploaded_img_bytes, width=250)
+            if current_img_bytes:
+                st.image(current_img_bytes, width=250)
 
         payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
 
         with st.chat_message("assistant"):
             with st.spinner("Elaborazione in corso..."):
                 try:
-                    if st.session_state.uploaded_img_bytes:
-                        b64 = base64.b64encode(st.session_state.uploaded_img_bytes).decode()
+                    if current_img_bytes:
+                        b64 = base64.b64encode(current_img_bytes).decode()
                         payload[-1] = {
                             "role": "user", 
                             "content": [
@@ -251,7 +330,8 @@ with col_chat:
                     parla_testo(resp)
                 except Exception as e:
                     st.error(f"Errore di sistema: {e}")
-                    
+                
+        # Pulizia dell'immagine allegata DOPO che è stata inviata con successo
         st.session_state.uploaded_img_bytes = None
         st.rerun()
 
