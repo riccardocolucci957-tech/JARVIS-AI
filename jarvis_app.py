@@ -126,13 +126,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Inizializzazione Client API (Groq, Gemini, Cohere)
+# Inizializzazione Client API
 try:
     groq_client = groq.Groq(api_key=st.secrets["GROQ_API_KEY"])
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     cohere_client = cohere.ClientV2(api_key=st.secrets["COHERE_API_KEY"])
 except Exception:
-    st.error("⚠️ Verifica che tutte le API Key siano configurate correttamente nei Secrets di Streamlit.")
+    st.error("⚠️ Verifica che tutte le API Key (GROQ, GOOGLE, COHERE) siano configurate correttamente nei Secrets di Streamlit.")
     st.stop()
 
 # Inizializzazione sessione chat e variabili di stato
@@ -276,57 +276,39 @@ with col_chat:
                 st.image(current_img_bytes, width=250)
 
         with st.chat_message("assistant"):
-            with st.spinner("Elaborazione in corso..."):
+            with st.spinner("J.A.R.V.I.S. sta elaborando..."):
                 try:
                     if "Groq" in motore_ai:
-                        # Invio a Groq (Llama 3)
                         groq_messages = [{"role": "system", "content": system_content}]
                         for m in messaggi:
                             groq_messages.append({"role": m["role"], "content": m["content"]})
                         
                         response = groq_client.chat.completions.create(
-                            model="llama3-70b-8192",
+                            model="llama-3.3-70b-versatile",
                             messages=groq_messages,
                             temperature=0.7
                         )
                         resp = response.choices[0].message.content
 
                     elif "Gemini" in motore_ai:
-                        # Invio a Google Gemini
-                        generation_config = {"temperature": 0.7}
-                        model = genai.GenerativeModel(
-                            model_name="gemini-1.5-flash",
-                            system_instruction=system_content,
-                            generation_config=generation_config
-                        )
-                        
-                        gemini_history = []
-                        for m in messaggi[:-1]:
-                            r = "user" if m["role"] == "user" else "model"
-                            gemini_history.append({"role": r, "parts": [m["content"]]})
-                        
-                        chat_session = model.start_chat(history=gemini_history)
-                        response = chat_session.send_message(testo_da_inviare)
+                        model = genai.GenerativeModel('gemini-1.5-flash')
+                        response = model.generate_content(testo_da_inviare)
                         resp = response.text
 
                     else:
-                        # Invio a Cohere (Command R)
-                        cohere_messages = [{"role": "system", "content": system_content}]
-                        for m in messaggi:
-                            role_map = "user" if m["role"] == "user" else "assistant"
-                            cohere_messages.append({"role": role_map, "content": m["content"]})
-                        
                         response = cohere_client.chat(
                             model="command-r-plus",
-                            messages=cohere_messages
+                            message=testo_da_inviare
                         )
-                        resp = response.message.content[0].text
+                        resp = response.text
 
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
                 except Exception as e:
-                    st.error(f"Errore di comunicazione: {e}")
+                    resp = f"⚠️ Errore di connessione al server neurale: {e}"
+                    st.error(resp)
+                    messaggi.append({"role": "assistant", "content": resp})
                 
         st.session_state.uploaded_img_bytes = None
         st.rerun()
