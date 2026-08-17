@@ -1,6 +1,5 @@
 import streamlit as st
 import os
-import groq
 import google.generativeai as genai
 import cohere
 from datetime import datetime
@@ -128,11 +127,10 @@ st.markdown("""
 
 # Inizializzazione Client API
 try:
-    groq_client = groq.Groq(api_key=st.secrets["GROQ_API_KEY"])
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     cohere_client = cohere.ClientV2(api_key=st.secrets["COHERE_API_KEY"])
 except Exception:
-    st.error("⚠️ Verifica che tutte le API Key (GROQ, GOOGLE, COHERE) siano configurate correttamente nei Secrets di Streamlit.")
+    st.error("⚠️ Verifica che le API Key di Google e Cohere siano configurate correttamente nei Secrets di Streamlit.")
     st.stop()
 
 # Inizializzazione sessione chat e variabili di stato
@@ -167,9 +165,8 @@ if st.session_state.show_sidebar:
         st.markdown('<div class="menu-container">', unsafe_allow_html=True)
         st.markdown("### ⚙️ Controllo")
         
-        # Scelta del motore AI tra i tre disponibili
+        # Scelta del motore AI aggiornata senza Groq
         motore_ai = st.selectbox("🧠 Motore AI", [
-            "Groq (Llama 3 - Veloce)", 
             "Google Gemini (Intelligente)", 
             "Cohere (Command R - Multilingua)"
         ])
@@ -202,7 +199,7 @@ if st.session_state.show_sidebar:
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     col_chat = col_rest
-    motore_ai = "Groq (Llama 3 - Veloce)"
+    motore_ai = "Google Gemini (Intelligente)"
     personalita = "Standard (Professionale)"
     lingua = "Italiano"
 
@@ -278,29 +275,33 @@ with col_chat:
         with st.chat_message("assistant"):
             with st.spinner("J.A.R.V.I.S. sta elaborando..."):
                 try:
-                    if "Groq" in motore_ai:
-                        groq_messages = [{"role": "system", "content": system_content}]
-                        for m in messaggi:
-                            groq_messages.append({"role": m["role"], "content": m["content"]})
-                        
-                        response = groq_client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            messages=groq_messages,
-                            temperature=0.7
+                    if "Gemini" in motore_ai:
+                        model = genai.GenerativeModel(
+                            model_name='gemini-1.5-flash',
+                            system_instruction=system_content
                         )
-                        resp = response.choices[0].message.content
-
-                    elif "Gemini" in motore_ai:
-                        model = genai.GenerativeModel('gemini-1.5-flash')
-                        response = model.generate_content(testo_da_inviare)
+                        # Conversione della cronologia nel formato compatibile con Gemini
+                        gemini_history = []
+                        for m in messaggi[:-1]:
+                            role = "user" if m["role"] == "user" else "model"
+                            gemini_history.append({"role": role, "parts": [m["content"]]})
+                        
+                        chat_session = model.start_history_chat(history=gemini_history) if hasattr(model, 'start_history_chat') else model.start_chat(history=gemini_history)
+                        response = chat_session.send_message(testo_da_inviare)
                         resp = response.text
 
                     else:
+                        # Gestione Cohere con inclusione del system prompt e storico
+                        cohere_messages = [{"role": "system", "content": system_content}]
+                        for m in messaggi:
+                            role = "user" if m["role"] == "user" else "assistant"
+                            cohere_messages.append({"role": role, "content": m["content"]})
+                        
                         response = cohere_client.chat(
                             model="command-r-plus",
-                            message=testo_da_inviare
+                            messages=cohere_messages
                         )
-                        resp = response.text
+                        resp = response.message.content[0].text
 
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
