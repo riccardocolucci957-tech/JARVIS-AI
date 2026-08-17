@@ -148,6 +148,8 @@ if "voce_attiva" not in st.session_state:
     st.session_state.voce_attiva = True
 if "uploaded_img_bytes" not in st.session_state:
     st.session_state.uploaded_img_bytes = None
+if "prompt_to_send" not in st.session_state:
+    st.session_state.prompt_to_send = None
 
 oggi = datetime.now().strftime("%d/%m/%Y")
 giorno_seed = datetime.now().strftime("%Y%m%d")
@@ -253,16 +255,16 @@ with col_chat:
     st.caption("💡 Suggerimenti del giorno (clicca per inviare):")
     col_sug1, col_sug2, col_sug3 = st.columns(3)
 
-    input_utente = None
-    with col_sug1:
-        if st.button(domande_del_giorno[0], use_container_width=True):
-            input_utente = domande_del_giorno[0]
-    with col_sug2:
-        if st.button(domande_del_giorno[1], use_container_width=True):
-            input_utente = domande_del_giorno[1]
-    with col_sug3:
-        if st.button(domande_del_giorno[2], use_container_width=True):
-            input_utente = domande_del_giorno[2]
+    # Funzione di utilità interna per impostare il prompt
+    def set_prompt(text):
+        st.session_state.prompt_to_send = text
+
+    if col_sug1.button(domande_del_giorno[0], use_container_width=True):
+        set_prompt(domande_del_giorno[0])
+    if col_sug2.button(domande_del_giorno[1], use_container_width=True):
+        set_prompt(domande_del_giorno[1])
+    if col_sug3.button(domande_del_giorno[2], use_container_width=True):
+        set_prompt(domande_del_giorno[2])
 
     col_pop, col_in = st.columns([1, 15])
 
@@ -280,10 +282,13 @@ with col_chat:
     with col_in:
         chat_input_val = st.chat_input("Scrivi un comando...")
         if chat_input_val:
-            input_utente = chat_input_val
+            set_prompt(chat_input_val)
 
-    # 2. Se l'utente ha inserito un input (da chat o da bottone), lo processiamo subito
-    if input_utente:
+    # 2. Se è presente un prompt nello stato, lo elaboriamo immediatamente in modo sicuro
+    if st.session_state.prompt_to_send:
+        input_utente = st.session_state.prompt_to_send
+        st.session_state.prompt_to_send = None  # Reset immediato per evitare loop o blocchi
+        
         current_img_bytes = st.session_state.uploaded_img_bytes
         
         # Aggiungiamo il messaggio dell'utente alla sessione
