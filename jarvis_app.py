@@ -117,11 +117,6 @@ st.markdown("""
         animation: slideIn 0.3s ease-out;
     }
 
-    .suggestion-container {
-        animation: slideIn 0.4s ease-out;
-        margin-bottom: 10px;
-    }
-
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stDecoration"] { display: none !important; }
     #MainMenu { visibility: hidden !important; display: none !important; } 
@@ -148,8 +143,8 @@ if "voce_attiva" not in st.session_state:
     st.session_state.voce_attiva = True
 if "uploaded_img_bytes" not in st.session_state:
     st.session_state.uploaded_img_bytes = None
-if "prompt_to_send" not in st.session_state:
-    st.session_state.prompt_to_send = None
+if "input_pendente" not in st.session_state:
+    st.session_state.input_pendente = None
 
 oggi = datetime.now().strftime("%d/%m/%Y")
 giorno_seed = datetime.now().strftime("%Y%m%d")
@@ -195,7 +190,7 @@ if st.session_state.show_sidebar:
         for canale in canali_fissi:
             is_active = (canale == st.session_state.current_chat)
             button_type = "primary" if is_active else "secondary"
-            if st.button(canale, use_container_width=True, type=button_type):
+            if st.button(canale, use_container_width=True, type=button_type, key=f"chan_{canale}"):
                 st.session_state.current_chat = canale
                 st.rerun()
                 
@@ -244,69 +239,55 @@ with col_chat:
 
     messaggi = st.session_state.chat_sessions[st.session_state.current_chat]
 
-    # 1. Mostriamo la cronologia della chat esistente
+    # 1. Visualizzazione cronologia messaggi
     for msg in messaggi:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
             if msg.get("has_image"):
                 st.image(msg["has_image"], width=250)
 
-    st.markdown("<div class='suggestion-container'></div>", unsafe_allow_html=True)
-    st.caption("💡 Suggerimenti del giorno (clicca per inviare):")
-    col_sug1, col_sug2, col_sug3 = st.columns(3)
-
-    # Funzione di utilità interna per impostare il prompt
-    def set_prompt(text):
-        st.session_state.prompt_to_send = text
-
-    if col_sug1.button(domande_del_giorno[0], use_container_width=True):
-        set_prompt(domande_del_giorno[0])
-    if col_sug2.button(domande_del_giorno[1], use_container_width=True):
-        set_prompt(domande_del_giorno[1])
-    if col_sug3.button(domande_del_giorno[2], use_container_width=True):
-        set_prompt(domande_del_giorno[2])
-
+    # 2. Gestione input tramite st.chat_input e popover immagine
     col_pop, col_in = st.columns([1, 15])
 
     with col_pop:
         with st.popover("➕", help="Allega immagine"):
-            uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"])
+            uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"], key="img_uploader_unique")
             if uploaded_file:
                 st.session_state.uploaded_img_bytes = uploaded_file.getvalue()
                 st.image(st.session_state.uploaded_img_bytes, width=150, caption="Pronta")
             if st.session_state.uploaded_img_bytes is not None:
-                if st.button("Rimuovi Immagine"):
+                if st.button("Rimuovi Immagine", key="remove_img_btn"):
                     st.session_state.uploaded_img_bytes = None
                     st.rerun()
 
     with col_in:
-        chat_input_val = st.chat_input("Scrivi un comando...")
-        if chat_input_val:
-            set_prompt(chat_input_val)
+        prompt_utente = st.chat_input("Scrivi un comando...")
 
-    # 2. Se è presente un prompt nello stato, lo elaboriamo immediatamente in modo sicuro
-    if st.session_state.prompt_to_send:
-        input_utente = st.session_state.prompt_to_send
-        st.session_state.prompt_to_send = None  # Reset immediato per evitare loop o blocchi
+    # Se l'utente scrive qualcosa nella chat bar
+    if prompt_utente:
+        st.session_state.input_pendente = prompt_utente
+
+    # 3. Elaborazione dell'input pendente (eseguita in modo atomico)
+    if st.session_state.input_pendente:
+        testo_da_inviare = st.session_state.input_pendente
+        st.session_state.input_pendente = None # Reset immediato per evitare loop
         
         current_img_bytes = st.session_state.uploaded_img_bytes
         
-        # Aggiungiamo il messaggio dell'utente alla sessione
-        msg_data = {"role": "user", "content": input_utente}
+        # Aggiunta e visualizzazione messaggio utente
+        msg_data = {"role": "user", "content": testo_da_inviare}
         if current_img_bytes:
             msg_data["has_image"] = current_img_bytes
         messaggi.append(msg_data)
         
-        # Mostriamo subito il messaggio utente a schermo
         with st.chat_message("user"):
-            st.markdown(input_utente)
+            st.markdown(testo_da_inviare)
             if current_img_bytes:
                 st.image(current_img_bytes, width=250)
 
-        # Prepariamo il payload per l'API di Groq
+        # Preparazione payload e chiamata API Groq
         payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
 
-        # Chiamata all'API e generazione della risposta dell'assistente nello stesso ciclo
         with st.chat_message("assistant"):
             with st.spinner("Elaborazione in corso..."):
                 try:
@@ -315,7 +296,7 @@ with col_chat:
                         payload[-1] = {
                             "role": "user", 
                             "content": [
-                                {"type": "text", "text": input_utente}, 
+                                {"type": "text", "text": testo_da_inviare}, 
                                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
                             ]
                         }
@@ -329,7 +310,7 @@ with col_chat:
                 except Exception as e:
                     st.error(f"Errore di comunicazione con Groq: {e}")
                 
-        # Pulizia dell'immagine e aggiornamento pulito dello stato
+        # Pulizia finale e aggiornamento pulito
         st.session_state.uploaded_img_bytes = None
         st.rerun()
 
