@@ -284,7 +284,7 @@ with col_chat:
                             groq_messages.append({"role": m["role"], "content": m["content"]})
                         
                         response = groq_client.chat.completions.create(
-                            model="llama3-70b-8192",
+                            model="llama-3.1-70b-versatile",
                             messages=groq_messages,
                             temperature=0.7
                         )
