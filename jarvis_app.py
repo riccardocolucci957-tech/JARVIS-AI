@@ -148,8 +148,6 @@ if "voce_attiva" not in st.session_state:
     st.session_state.voce_attiva = True
 if "uploaded_img_bytes" not in st.session_state:
     st.session_state.uploaded_img_bytes = None
-if "prompt_to_send" not in st.session_state:
-    st.session_state.prompt_to_send = None
 
 oggi = datetime.now().strftime("%d/%m/%Y")
 giorno_seed = datetime.now().strftime("%Y%m%d")
@@ -244,7 +242,7 @@ with col_chat:
 
     messaggi = st.session_state.chat_sessions[st.session_state.current_chat]
 
-    # Mostriamo la cronologia dei messaggi esistenti
+    # 1. Mostriamo la cronologia della chat esistente
     for msg in messaggi:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
@@ -255,19 +253,16 @@ with col_chat:
     st.caption("💡 Suggerimenti del giorno (clicca per inviare):")
     col_sug1, col_sug2, col_sug3 = st.columns(3)
 
-    # Gestione dei click sui suggerimenti tramite stato
+    input_utente = None
     with col_sug1:
         if st.button(domande_del_giorno[0], use_container_width=True):
-            st.session_state.prompt_to_send = domande_del_giorno[0]
-            st.rerun()
+            input_utente = domande_del_giorno[0]
     with col_sug2:
         if st.button(domande_del_giorno[1], use_container_width=True):
-            st.session_state.prompt_to_send = domande_del_giorno[1]
-            st.rerun()
+            input_utente = domande_del_giorno[1]
     with col_sug3:
         if st.button(domande_del_giorno[2], use_container_width=True):
-            st.session_state.prompt_to_send = domande_del_giorno[2]
-            st.rerun()
+            input_utente = domande_del_giorno[2]
 
     col_pop, col_in = st.columns([1, 15])
 
@@ -283,33 +278,30 @@ with col_chat:
                     st.rerun()
 
     with col_in:
-        prompt_digitato = st.chat_input("Scrivi un comando...")
-        if prompt_digitato:
-            st.session_state.prompt_to_send = prompt_digitato
+        chat_input_val = st.chat_input("Scrivi un comando...")
+        if chat_input_val:
+            input_utente = chat_input_val
 
-    # --- BLOCCO DI ELABORAZIONE DELLA RISPOSTA DELL'IA ---
-    if st.session_state.prompt_to_send:
-        prompt_attivo = st.session_state.prompt_to_send
-        st.session_state.prompt_to_send = None  # Resettiamo subito per evitare loop
-        
+    # 2. Se l'utente ha inserito un input (da chat o da bottone), lo processiamo subito
+    if input_utente:
         current_img_bytes = st.session_state.uploaded_img_bytes
         
-        # 1. Salviamo e mostriamo il messaggio dell'utente
-        msg_data = {"role": "user", "content": prompt_attivo}
+        # Aggiungiamo il messaggio dell'utente alla sessione
+        msg_data = {"role": "user", "content": input_utente}
         if current_img_bytes:
             msg_data["has_image"] = current_img_bytes
-            
         messaggi.append(msg_data)
         
+        # Mostriamo subito il messaggio utente a schermo
         with st.chat_message("user"):
-            st.markdown(prompt_attivo)
+            st.markdown(input_utente)
             if current_img_bytes:
                 st.image(current_img_bytes, width=250)
 
-        # 2. Prepariamo il payload per Groq
+        # Prepariamo il payload per l'API di Groq
         payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
 
-        # 3. Chiamiamo l'API e generiamo la risposta dell'assistente nello stesso ciclo
+        # Chiamata all'API e generazione della risposta dell'assistente nello stesso ciclo
         with st.chat_message("assistant"):
             with st.spinner("Elaborazione in corso..."):
                 try:
@@ -318,7 +310,7 @@ with col_chat:
                         payload[-1] = {
                             "role": "user", 
                             "content": [
-                                {"type": "text", "text": prompt_attivo}, 
+                                {"type": "text", "text": input_utente}, 
                                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
                             ]
                         }
@@ -330,9 +322,9 @@ with col_chat:
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
                 except Exception as e:
-                    st.error(f"Errore di sistema: {e}")
+                    st.error(f"Errore di comunicazione con Groq: {e}")
                 
-        # Pulizia finale dell'immagine e ricaricamento pulito della pagina
+        # Pulizia dell'immagine e aggiornamento pulito dello stato
         st.session_state.uploaded_img_bytes = None
         st.rerun()
 
