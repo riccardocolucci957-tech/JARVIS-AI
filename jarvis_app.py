@@ -1,5 +1,5 @@
 import streamlit as st
-from groq import Groq
+import anthropic
 from datetime import datetime
 import base64
 import random
@@ -125,11 +125,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Recupero API Key protetta
+# Recupero API Key protetta di Anthropic
 try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
 except Exception:
-    st.error("⚠️ Configura GROQ_API_KEY nei Secrets di Streamlit.")
+    st.error("⚠️ Configura ANTHROPIC_API_KEY nei Secrets di Streamlit.")
     st.stop()
 
 # Inizializzazione sessione chat e variabili di stato
@@ -263,18 +263,16 @@ with col_chat:
     with col_in:
         prompt_utente = st.chat_input("Scrivi un comando...")
 
-    # Se l'utente scrive qualcosa nella chat bar
     if prompt_utente:
         st.session_state.input_pendente = prompt_utente
 
-    # 3. Elaborazione dell'input pendente (eseguita in modo atomico)
+    # 3. Elaborazione dell'input pendente con Claude
     if st.session_state.input_pendente:
         testo_da_inviare = st.session_state.input_pendente
-        st.session_state.input_pendente = None # Reset immediato per evitare loop
+        st.session_state.input_pendente = None 
         
         current_img_bytes = st.session_state.uploaded_img_bytes
         
-        # Aggiunta e visualizzazione messaggio utente
         msg_data = {"role": "user", "content": testo_da_inviare}
         if current_img_bytes:
             msg_data["has_image"] = current_img_bytes
@@ -285,32 +283,44 @@ with col_chat:
             if current_img_bytes:
                 st.image(current_img_bytes, width=250)
 
-        # Preparazione payload e chiamata API Groq
-        payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
+        # Conversione dei messaggi nel formato richiesto da Anthropic
+        anthropic_messages = []
+        for m in messaggi:
+            role = "user" if m["role"] == "user" else "assistant"
+            # Gestione messaggi multimediali o testuali puri per Claude
+            if isinstance(m.get("has_image"), bytes) and m["role"] == "user":
+                b64_data = base64.b64encode(m["has_image"]).decode()
+                anthropic_messages.append({
+                    "role": role,
+                    "content": [
+                        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64_data}},
+                        {"type": "text", "text": m["content"]}
+                    ]
+                })
+            else:
+                anthropic_messages.append({
+                    "role": role,
+                    "content": m["content"]
+                })
 
         with st.chat_message("assistant"):
             with st.spinner("Elaborazione in corso..."):
                 try:
-                    if current_img_bytes:
-                        b64 = base64.b64encode(current_img_bytes).decode()
-                        payload[-1] = {
-                            "role": "user", 
-                            "content": [
-                                {"type": "text", "text": testo_da_inviare}, 
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                            ]
-                        }
-                        resp = client.chat.completions.create(model="llama-3.2-90b-vision-instruct", messages=payload).choices[0].message.content
-                    else:
-                        resp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload).choices[0].message.content
+                    # Chiamata all'API di Claude (claude-3-5-sonnet-20241022)
+                    response = client.messages.create(
+                        model="claude-3-5-sonnet-20241022",
+                        max_tokens=4096,
+                        system=system_content,
+                        messages=anthropic_messages
+                    )
+                    resp = response.content[0].text
                     
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
                 except Exception as e:
-                    st.error(f"Errore di comunicazione con Groq: {e}")
+                    st.error(f"Errore di comunicazione con Claude: {e}")
                 
-        # Pulizia finale e aggiornamento pulito
         st.session_state.uploaded_img_bytes = None
         st.rerun()
 
