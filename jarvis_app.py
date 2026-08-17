@@ -1,14 +1,15 @@
 import streamlit as st
-import anthropic
+import os
+import groq
+import google.generativeai as genai
+import cohere
 from datetime import datetime
-import base64
-import random
 import json
 
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="collapsed")
 
-# Inizializzazione dello stato di autenticazione e del menu
+# Inizializzazione dello stato di autenticazione
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "show_sidebar" not in st.session_state:
@@ -125,11 +126,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Recupero API Key protetta di Anthropic
+# Inizializzazione Client API (Groq, Gemini, Cohere)
 try:
-    client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+    groq_client = groq.Groq(api_key=st.secrets["GROQ_API_KEY"])
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    cohere_client = cohere.ClientV2(api_key=st.secrets["COHERE_API_KEY"])
 except Exception:
-    st.error("⚠️ Configura ANTHROPIC_API_KEY nei Secrets di Streamlit.")
+    st.error("⚠️ Verifica che tutte le API Key siano configurate correttamente nei Secrets di Streamlit.")
     st.stop()
 
 # Inizializzazione sessione chat e variabili di stato
@@ -147,23 +150,6 @@ if "input_pendente" not in st.session_state:
     st.session_state.input_pendente = None
 
 oggi = datetime.now().strftime("%d/%m/%Y")
-giorno_seed = datetime.now().strftime("%Y%m%d")
-
-# --- GENERATORE DOMANDE GIORNALIERE ---
-bancomat_domande = [
-    "Fammi una battuta divertente sul mondo tech o sull'informatica.",
-    "Che tempo fa oggi? Dammi un'analisi rapida.",
-    "J.A.R.V.I.S., qual è il protocollo di sicurezza attivo oggi?",
-    "Raccontami un aneddoto geniale su Tony Stark.",
-    "Dammi un consiglio di programmazione o ottimizzazione hardware.",
-    "Qual è lo stato attuale dei sistemi di bordo?",
-    "Fammi una battuta caustica in stile Stark.",
-    "Analizza la situazione globale con sarcasmo.",
-    "Quali sono le priorità operative per oggi?"
-]
-
-random.seed(giorno_seed)
-domande_del_giorno = random.sample(bancomat_domande, 3)
 
 # --- LAYOUT PRINCIPALE: PULSANTE LATERALE + MENU ANIMATO + CHAT ---
 col_btn, col_rest = st.columns([0.8, 12])
@@ -180,6 +166,14 @@ if st.session_state.show_sidebar:
     with col_menu:
         st.markdown('<div class="menu-container">', unsafe_allow_html=True)
         st.markdown("### ⚙️ Controllo")
+        
+        # Scelta del motore AI tra i tre disponibili
+        motore_ai = st.selectbox("🧠 Motore AI", [
+            "Groq (Llama 3 - Veloce)", 
+            "Google Gemini (Intelligente)", 
+            "Cohere (Command R - Multilingua)"
+        ])
+        
         personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
         lingua = st.selectbox("🌐 Lingua", ["Italiano", "English", "Español", "Français", "Deutsch"])
         st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
@@ -208,6 +202,7 @@ if st.session_state.show_sidebar:
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     col_chat = col_rest
+    motore_ai = "Groq (Llama 3 - Veloce)"
     personalita = "Standard (Professionale)"
     lingua = "Italiano"
 
@@ -239,14 +234,12 @@ with col_chat:
 
     messaggi = st.session_state.chat_sessions[st.session_state.current_chat]
 
-    # 1. Visualizzazione cronologia messaggi
     for msg in messaggi:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
             if msg.get("has_image"):
                 st.image(msg["has_image"], width=250)
 
-    # 2. Gestione input tramite st.chat_input e popover immagine
     col_pop, col_in = st.columns([1, 15])
 
     with col_pop:
@@ -266,7 +259,6 @@ with col_chat:
     if prompt_utente:
         st.session_state.input_pendente = prompt_utente
 
-    # 3. Elaborazione dell'input pendente con Claude
     if st.session_state.input_pendente:
         testo_da_inviare = st.session_state.input_pendente
         st.session_state.input_pendente = None 
@@ -283,43 +275,58 @@ with col_chat:
             if current_img_bytes:
                 st.image(current_img_bytes, width=250)
 
-        # Conversione dei messaggi nel formato richiesto da Anthropic
-        anthropic_messages = []
-        for m in messaggi:
-            role = "user" if m["role"] == "user" else "assistant"
-            # Gestione messaggi multimediali o testuali puri per Claude
-            if isinstance(m.get("has_image"), bytes) and m["role"] == "user":
-                b64_data = base64.b64encode(m["has_image"]).decode()
-                anthropic_messages.append({
-                    "role": role,
-                    "content": [
-                        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64_data}},
-                        {"type": "text", "text": m["content"]}
-                    ]
-                })
-            else:
-                anthropic_messages.append({
-                    "role": role,
-                    "content": m["content"]
-                })
-
         with st.chat_message("assistant"):
             with st.spinner("Elaborazione in corso..."):
                 try:
-                    # Chiamata all'API di Claude (claude-3-5-sonnet-20241022)
-                    response = client.messages.create(
-                        model="claude-3-5-sonnet-20241022",
-                        max_tokens=4096,
-                        system=system_content,
-                        messages=anthropic_messages
-                    )
-                    resp = response.content[0].text
-                    
+                    if "Groq" in motore_ai:
+                        # Invio a Groq (Llama 3)
+                        groq_messages = [{"role": "system", "content": system_content}]
+                        for m in messaggi:
+                            groq_messages.append({"role": m["role"], "content": m["content"]})
+                        
+                        response = groq_client.chat.completions.create(
+                            model="llama3-70b-8192",
+                            messages=groq_messages,
+                            temperature=0.7
+                        )
+                        resp = response.choices[0].message.content
+
+                    elif "Gemini" in motore_ai:
+                        # Invio a Google Gemini
+                        generation_config = {"temperature": 0.7}
+                        model = genai.GenerativeModel(
+                            model_name="gemini-1.5-flash",
+                            system_instruction=system_content,
+                            generation_config=generation_config
+                        )
+                        
+                        gemini_history = []
+                        for m in messaggi[:-1]:
+                            r = "user" if m["role"] == "user" else "model"
+                            gemini_history.append({"role": r, "parts": [m["content"]]})
+                        
+                        chat_session = model.start_chat(history=gemini_history)
+                        response = chat_session.send_message(testo_da_inviare)
+                        resp = response.text
+
+                    else:
+                        # Invio a Cohere (Command R)
+                        cohere_messages = [{"role": "system", "content": system_content}]
+                        for m in messaggi:
+                            role_map = "user" if m["role"] == "user" else "assistant"
+                            cohere_messages.append({"role": role_map, "content": m["content"]})
+                        
+                        response = cohere_client.chat(
+                            model="command-r-plus",
+                            messages=cohere_messages
+                        )
+                        resp = response.message.content[0].text
+
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
                 except Exception as e:
-                    st.error(f"Errore di comunicazione con Claude: {e}")
+                    st.error(f"Errore di comunicazione: {e}")
                 
         st.session_state.uploaded_img_bytes = None
         st.rerun()
