@@ -306,6 +306,11 @@ with col_chat:
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
+                    File "/mount/src/jarvis-ai/jarvis_app.py", line 312
+  
+  ^
+SyntaxError: expected 'except' or 'finally' block
+
                 
 
 
