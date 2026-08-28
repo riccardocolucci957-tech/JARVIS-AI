@@ -306,13 +306,7 @@ with col_chat:
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
-                except Exception as e:
-                    resp = f"⚠️ Errore di connessione al server neurale: {e}"
-                    st.error(resp)
-                    messaggi.append({"role": "assistant", "content": resp})
                 
-        st.session_state.uploaded_img_bytes = None
-        st.rerun()
 
 
 
