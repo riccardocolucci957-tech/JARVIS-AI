@@ -1,9 +1,8 @@
 import streamlit as st
-from groq import Groq
+import google.generativeai as genai
 from datetime import datetime
 from PIL import Image
 import base64
-import io
 import random
 
 # Configurazione della pagina
@@ -15,7 +14,7 @@ if "logged_in" not in st.session_state:
 if "show_sidebar" not in st.session_state:
     st.session_state.show_sidebar = False
 
-# --- SCHERMATA DI ACCESSO / REGISTRAZIONE (GOOGLE & APPLE) ---
+# --- SCHERMATA DI ACCESSO / REGISTRAZIONE ---
 if not st.session_state.logged_in:
     st.markdown("""
         <style>
@@ -54,12 +53,10 @@ if not st.session_state.logged_in:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Pulsante Google
         if st.button("🌐  Accedi / Registrati con Google", use_container_width=True):
             st.session_state.logged_in = True
             st.rerun()
             
-        # Pulsante Apple
         if st.button("  Accedi / Registrati con Apple", use_container_width=True):
             st.session_state.logged_in = True
             st.rerun()
@@ -70,20 +67,6 @@ if not st.session_state.logged_in:
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
-    
-    * {
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-        user-select: none;
-    }
-
-    .stChatMessage, input, textarea {
-        -webkit-user-select: text !important;
-        -moz-user-select: text !important;
-        -ms-user-select: text !important;
-        user-select: text !important;
-    }
     
     @keyframes slideIn {
         from { opacity: 0; transform: translateX(-15px); }
@@ -133,11 +116,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Recupero API Key protetta
+# Recupero API Key di Gemini dai Secrets
 try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except:
-    st.error("⚠️ Configura GROQ_API_KEY nei Secrets di Streamlit.")
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    # Usiamo gemini-2.5-flash (o gemini-1.5-pro) che supporta la ricerca e l'analisi multimodale
+    model = genai.GenerativeModel('gemini-2.5-flash')
+except Exception as e:
+    st.error("⚠️ Configura correttamente GEMINI_API_KEY nei Secrets di Streamlit.")
     st.stop()
 
 # Inizializzazione sessione chat
@@ -149,8 +134,8 @@ if "current_chat" not in st.session_state:
     st.session_state.current_chat = "Chat Principale"
 if "voce_attiva" not in st.session_state:
     st.session_state.voce_attiva = True
-if "uploaded_img_bytes" not in st.session_state:
-    st.session_state.uploaded_img_bytes = None
+if "uploaded_img" not in st.session_state:
+    st.session_state.uploaded_img = None
 
 oggi = datetime.now().strftime("%d/%m/%Y")
 giorno_seed = datetime.now().strftime("%Y%m%d")
@@ -171,7 +156,7 @@ bancomat_domande = [
 random.seed(giorno_seed)
 domande_del_giorno = random.sample(bancomat_domande, 3)
 
-# --- LAYOUT PRINCIPALE: PULSANTE LATERALE + MENU ANIMATO + CHAT ---
+# --- LAYOUT PRINCIPALE ---
 col_btn, col_rest = st.columns([0.8, 12])
 
 with col_btn:
@@ -226,7 +211,7 @@ with col_chat:
     else:
         base_prompt = "J.A.R.V.I.S., advanced AI assistant. Answer professionally, with extreme technical precision and helpfulness."
 
-    system_content = f"{base_prompt} Respond strictly in {lingua}. Date: {oggi}."
+    system_instruction = f"{base_prompt} Respond strictly in {lingua}. Date: {oggi}. Utilizza le informazioni aggiornate dal web quando necessario per rispondere con precisione."
 
     def parla_testo(testo):
         if st.session_state.voce_attiva:
@@ -255,59 +240,59 @@ with col_chat:
             domanda_cliccata = domande_del_giorno[1]
     with col_sug3:
         if st.button(domande_del_giorno[2], use_container_width=True, key="sug_2"):
-            domanda_cliccata = domande_del_giorno[2]
+            domanda_cliccata = domandi_del_giorno[2] if 'domandi_del_giorno' in locals() else domande_del_giorno[2]
 
-    # --- AREA INPUT E INVIO (Fuori dalle colonne) ---
+    # --- GESTIONE IMMAGINE E INPUT CHAT ---
     with st.popover("➕ Allega immagine", help="Aggiungi un'immagine"):
         uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"])
         if uploaded_file:
-            st.session_state.uploaded_img_bytes = uploaded_file.getvalue()
-            st.image(st.session_state.uploaded_img_bytes, width=150, caption="Pronta")
+            st.session_state.uploaded_img = Image.open(uploaded_file)
+            st.image(st.session_state.uploaded_img, width=150, caption="Pronta")
             if st.button("Rimuovi immagine"):
-                st.session_state.uploaded_img_bytes = None
+                st.session_state.uploaded_img = None
                 st.rerun()
 
-    if st.session_state.uploaded_img_bytes:
+    if st.session_state.uploaded_img:
         st.info("📎 Immagine allegata e pronta per l'invio.")
 
-    # Chat input principale libero
+    # Input della chat principale (fuori da colonne e sicuro)
     prompt_digitato = st.chat_input("Scrivi un comando per J.A.R.V.I.S....")
 
-    # Gestione priorità input
     prompt = prompt_digitato if prompt_digitato else domanda_cliccata
 
     if prompt:
         messaggi.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
-            if st.session_state.uploaded_img_bytes:
-                st.image(st.session_state.uploaded_img_bytes, width=250)
-
-        payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
+            if st.session_state.uploaded_img:
+                st.image(st.session_state.uploaded_img, width=250)
 
         with st.chat_message("assistant"):
-            with st.spinner("Elaborazione in corso..."):
+            with st.spinner("J.A.R.V.I.S. sta elaborando..."):
                 try:
-                    if st.session_state.uploaded_img_bytes:
-                        b64 = base64.b64encode(st.session_state.uploaded_img_bytes).decode()
-                        payload[-1] = {
-                            "role": "user", 
-                            "content": [
-                                {"type": "text", "text": prompt}, 
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                            ]
-                        }
-                        resp = client.chat.completions.create(model="llama-3.2-90b-vision-instruct", messages=payload).choices[0].message.content
-                    else:
-                        resp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload).choices[0].message.content
+                    # Creazione della cronologia per Gemini
+                    chat_history = []
+                    for m in messaggi[:-1]:
+                        role = "user" if m["role"] == "user" else "model"
+                        chat_history.append({"role": role, "parts": [m["content"]]})
+
+                    chat = model.start_chat(history=chat_history)
+                    
+                    # Invio del messaggio a Gemini (con istruzioni di sistema e eventuale immagine)
+                    input_contents = [f"[Istruzioni di sistema: {system_instruction}] \n\n Utente: {prompt}"]
+                    if st.session_state.uploaded_img:
+                        input_contents.append(st.session_state.uploaded_img)
+
+                    response = chat.send_message(input_contents)
+                    resp = response.text
                     
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
                 except Exception as e:
-                    st.error(f"Errore di sistema: {e}")
+                    st.error(f"Errore di sistema con Gemini: {e}")
                     
-        st.session_state.uploaded_img_bytes = None
+        st.session_state.uploaded_img = None
         st.rerun()
         
 
