@@ -65,7 +65,7 @@ try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
-    st.error("⚠️ Configura correttamente GEMINI_API_KEY nei Secrets di Streamlit.")
+    st.error(f"⚠️ Errore di configurazione API Key: {e}")
     st.stop()
 
 canali_fissi = ["Chat Principale", "Analisi Tecnica", "Codice e Script"]
@@ -185,6 +185,7 @@ with col_chat:
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
+                    st.rerun()
                 except Exception as e:
-                    st.error(f"Errore: {e}")
-        st.rerun()
+                    st.error(f"⚠️ Errore riscontrato con Gemini: {e}")
+                    
