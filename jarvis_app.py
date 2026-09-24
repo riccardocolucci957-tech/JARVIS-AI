@@ -59,9 +59,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Configurazione Groq Client con chiave diretta (funziona subito senza problemi di Secrets)
+# Configurazione Groq Client con la nuova chiave aggiornata
 try:
-    API_KEY_GROQ = "gsk_O6zdBJJbinpHxDvUoicWGdyb3FY20SMvMYF7hKCDGrZVgb8YFWp"
+    API_KEY_GROQ = "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"
     client = Groq(api_key=API_KEY_GROQ)
 except Exception as e:
     st.error(f"⚠️ Errore di inizializzazione client: {e}")
