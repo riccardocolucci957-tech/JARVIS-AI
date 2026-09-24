@@ -60,10 +60,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Configurazione Gemini
+# Configurazione Gemini (Modello corretto)
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-pro')
 except Exception as e:
     st.error("⚠️ Configura correttamente GEMINI_API_KEY nei Secrets di Streamlit.")
     st.stop()
