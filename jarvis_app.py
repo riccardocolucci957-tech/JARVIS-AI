@@ -1,5 +1,6 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from datetime import datetime
 from PIL import Image
 import base64
@@ -116,10 +117,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Recupero API Key di Gemini dai Secrets
+# Configurazione del client Gemini ufficiale
 try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 except Exception as e:
     st.error("⚠️ Configura correttamente GEMINI_API_KEY nei Secrets di Streamlit.")
     st.stop()
@@ -210,7 +210,7 @@ with col_chat:
     else:
         base_prompt = "J.A.R.V.I.S., advanced AI assistant. Answer professionally, with extreme technical precision and helpfulness."
 
-    system_instruction = f"{base_prompt} Respond strictly in {lingua}. Date: {oggi}. Utilizza le informazioni aggiornate dal web quando necessario per rispondere con precisione."
+    system_instruction = f"{base_prompt} Respond strictly in {lingua}. Date: {oggi}. Utilizza le informazioni aggiornate dal web quando necessario."
 
     def parla_testo(testo):
         if st.session_state.voce_attiva:
@@ -254,7 +254,7 @@ with col_chat:
     if st.session_state.uploaded_img:
         st.info("📎 Immagine allegata e pronta per l'invio.")
 
-    # Input della chat principale (fuori da colonne e sicuro)
+    # Input della chat principale
     prompt_digitato = st.chat_input("Scrivi un comando per J.A.R.V.I.S....")
 
     prompt = prompt_digitato if prompt_digitato else domanda_cliccata
@@ -269,20 +269,31 @@ with col_chat:
         with st.chat_message("assistant"):
             with st.spinner("J.A.R.V.I.S. sta elaborando..."):
                 try:
-                    chat_history = []
+                    # Preparazione della cronologia per la nuova API
+                    contents = []
                     for m in messaggi[:-1]:
                         role = "user" if m["role"] == "user" else "model"
-                        chat_history.append({"role": role, "parts": [m["content"]]})
-
-                    chat = model.start_chat(history=chat_history)
+                        contents.append(types.Content(role=role, parts=[types.Part.from_text(text=m["content"])]))
                     
-                    input_contents = [f"[Istruzioni di sistema: {system_instruction}] \n\n Utente: {prompt}"]
+                    # Aggiunta del messaggio corrente e dell'immagine eventuale
+                    current_parts = [types.Part.from_text(text=prompt)]
                     if st.session_state.uploaded_img:
-                        input_contents.append(st.session_state.uploaded_img)
+                        current_parts.append(st.session_state.uploaded_img)
+                        
+                    contents.append(types.Content(role="user", parts=current_parts))
 
-                    response = chat.send_message(input_contents)
-                    resp = response.text
+                    # Chiamata al modello Gemini 2.5 Flash con Google Search abilitato
+                    response = client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_instruction,
+                            tools=[types.Tool(google_search=types.GoogleSearch())],  # Abilita la ricerca Google in tempo reale!
+                            temperature=0.7,
+                        ),
+                    )
                     
+                    resp = response.text
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
@@ -291,10 +302,3 @@ with col_chat:
                     
         st.session_state.uploaded_img = None
         st.rerun()
-        
-
-
-                
-
-
-
