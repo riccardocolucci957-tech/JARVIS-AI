@@ -257,26 +257,24 @@ with col_chat:
         if st.button(domande_del_giorno[2], use_container_width=True, key="sug_2"):
             domanda_cliccata = domande_del_giorno[2]
 
-    col_pop, col_in = st.columns([1, 15])
-
-    with col_pop:
-        with st.popover("➕", help="Allega immagine"):
-            uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"])
-            if uploaded_file:
-                st.session_state.uploaded_img_bytes = uploaded_file.getvalue()
-                st.image(st.session_state.uploaded_img_bytes, width=150, caption="Pronta")
-                if st.button("Rimuovi"):
-                    st.session_state.uploaded_img_bytes = None
-                    st.rerun()
-
-    with col_in:
-        prompt_digitato = st.chat_input("Scrivi un comando...")
-
-    # Gestione priorità input
-    prompt = prompt_digitato if prompt_digitato else domanda_cliccata
+    # --- AREA INPUT E INVIO (Fuori dalle colonne) ---
+    with st.popover("➕ Allega immagine", help="Aggiungi un'immagine"):
+        uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"])
+        if uploaded_file:
+            st.session_state.uploaded_img_bytes = uploaded_file.getvalue()
+            st.image(st.session_state.uploaded_img_bytes, width=150, caption="Pronta")
+            if st.button("Rimuovi immagine"):
+                st.session_state.uploaded_img_bytes = None
+                st.rerun()
 
     if st.session_state.uploaded_img_bytes:
         st.info("📎 Immagine allegata e pronta per l'invio.")
+
+    # Chat input principale libero
+    prompt_digitato = st.chat_input("Scrivi un comando per J.A.R.V.I.S....")
+
+    # Gestione priorità input
+    prompt = prompt_digitato if prompt_digitato else domanda_cliccata
 
     if prompt:
         messaggi.append({"role": "user", "content": prompt})
@@ -311,6 +309,7 @@ with col_chat:
                     
         st.session_state.uploaded_img_bytes = None
         st.rerun()
+        
 
 
                 
