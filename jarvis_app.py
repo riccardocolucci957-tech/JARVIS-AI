@@ -119,7 +119,6 @@ st.markdown("""
 # Recupero API Key di Gemini dai Secrets
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    # Usiamo gemini-2.5-flash (o gemini-1.5-pro) che supporta la ricerca e l'analisi multimodale
     model = genai.GenerativeModel('gemini-2.5-flash')
 except Exception as e:
     st.error("⚠️ Configura correttamente GEMINI_API_KEY nei Secrets di Streamlit.")
@@ -240,7 +239,7 @@ with col_chat:
             domanda_cliccata = domande_del_giorno[1]
     with col_sug3:
         if st.button(domande_del_giorno[2], use_container_width=True, key="sug_2"):
-            domanda_cliccata = domandi_del_giorno[2] if 'domandi_del_giorno' in locals() else domande_del_giorno[2]
+            domanda_cliccata = domande_del_giorno[2]
 
     # --- GESTIONE IMMAGINE E INPUT CHAT ---
     with st.popover("➕ Allega immagine", help="Aggiungi un'immagine"):
@@ -270,7 +269,6 @@ with col_chat:
         with st.chat_message("assistant"):
             with st.spinner("J.A.R.V.I.S. sta elaborando..."):
                 try:
-                    # Creazione della cronologia per Gemini
                     chat_history = []
                     for m in messaggi[:-1]:
                         role = "user" if m["role"] == "user" else "model"
@@ -278,7 +276,6 @@ with col_chat:
 
                     chat = model.start_chat(history=chat_history)
                     
-                    # Invio del messaggio a Gemini (con istruzioni di sistema e eventuale immagine)
                     input_contents = [f"[Istruzioni di sistema: {system_instruction}] \n\n Utente: {prompt}"]
                     if st.session_state.uploaded_img:
                         input_contents.append(st.session_state.uploaded_img)
