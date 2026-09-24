@@ -1,20 +1,21 @@
 import streamlit as st
-import os
-import google.generativeai as genai
-import cohere
+from groq import Groq
 from datetime import datetime
-import json
+from PIL import Image
+import base64
+import io
+import random
 
 # Configurazione della pagina
 st.set_page_config(page_title="JARVIS AI", page_icon="🤖", layout="wide", initial_sidebar_state="collapsed")
 
-# Inizializzazione dello stato di autenticazione
+# Inizializzazione dello stato di autenticazione e del menu
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "show_sidebar" not in st.session_state:
     st.session_state.show_sidebar = False
 
-# --- SCHERMATA DI ACCESSO / REGISTRAZIONE ---
+# --- SCHERMATA DI ACCESSO / REGISTRAZIONE (GOOGLE & APPLE) ---
 if not st.session_state.logged_in:
     st.markdown("""
         <style>
@@ -53,11 +54,13 @@ if not st.session_state.logged_in:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        if st.button("🌐 Accedi / Registrati con Google", use_container_width=True):
+        # Pulsante Google
+        if st.button("🌐  Accedi / Registrati con Google", use_container_width=True):
             st.session_state.logged_in = True
             st.rerun()
             
-        if st.button("🍎 Accedi / Registrati con Apple", use_container_width=True):
+        # Pulsante Apple
+        if st.button("  Accedi / Registrati con Apple", use_container_width=True):
             st.session_state.logged_in = True
             st.rerun()
             
@@ -117,6 +120,11 @@ st.markdown("""
         animation: slideIn 0.3s ease-out;
     }
 
+    .suggestion-container {
+        animation: slideIn 0.4s ease-out;
+        margin-bottom: 10px;
+    }
+
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stDecoration"] { display: none !important; }
     #MainMenu { visibility: hidden !important; display: none !important; } 
@@ -125,15 +133,14 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Inizializzazione Client API
+# Recupero API Key protetta
 try:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    cohere_client = cohere.ClientV2(api_key=st.secrets["COHERE_API_KEY"])
-except Exception:
-    st.error("⚠️ Verifica che le API Key di Google e Cohere siano configurate correttamente nei Secrets di Streamlit.")
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+except:
+    st.error("⚠️ Configura GROQ_API_KEY nei Secrets di Streamlit.")
     st.stop()
 
-# Inizializzazione sessione chat e variabili di stato
+# Inizializzazione sessione chat
 canali_fissi = ["Chat Principale", "Analisi Tecnica", "Codice e Script"]
 
 if "chat_sessions" not in st.session_state:
@@ -144,10 +151,25 @@ if "voce_attiva" not in st.session_state:
     st.session_state.voce_attiva = True
 if "uploaded_img_bytes" not in st.session_state:
     st.session_state.uploaded_img_bytes = None
-if "input_pendente" not in st.session_state:
-    st.session_state.input_pendente = None
 
 oggi = datetime.now().strftime("%d/%m/%Y")
+giorno_seed = datetime.now().strftime("%Y%m%d")
+
+# --- GENERATORE DOMANDE GIORNALIERE ---
+bancomat_domande = [
+    "Fammi una battuta divertente sul mondo tech o sull'informatica.",
+    "Che tempo fa oggi? Dammi un'analisi rapida.",
+    "J.A.R.V.I.S., qual è il protocollo di sicurezza attivo oggi?",
+    "Raccontami un aneddoto geniale su Tony Stark.",
+    "Dammi un consiglio di programmazione o ottimizzazione hardware.",
+    "Qual è lo stato attuale dei sistemi di bordo?",
+    "Fammi una battuta caustica in stile Stark.",
+    "Analizza la situazione globale con sarcasmo.",
+    "Quali sono le priorità operative per oggi?"
+]
+
+random.seed(giorno_seed)
+domande_del_giorno = random.sample(bancomat_domande, 3)
 
 # --- LAYOUT PRINCIPALE: PULSANTE LATERALE + MENU ANIMATO + CHAT ---
 col_btn, col_rest = st.columns([0.8, 12])
@@ -164,13 +186,6 @@ if st.session_state.show_sidebar:
     with col_menu:
         st.markdown('<div class="menu-container">', unsafe_allow_html=True)
         st.markdown("### ⚙️ Controllo")
-        
-        # Scelta del motore AI aggiornata senza Groq
-        motore_ai = st.selectbox("🧠 Motore AI", [
-            "Google Gemini (Intelligente)", 
-            "Cohere (Command R - Multilingua)"
-        ])
-        
         personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
         lingua = st.selectbox("🌐 Lingua", ["Italiano", "English", "Español", "Français", "Deutsch"])
         st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
@@ -181,7 +196,7 @@ if st.session_state.show_sidebar:
         for canale in canali_fissi:
             is_active = (canale == st.session_state.current_chat)
             button_type = "primary" if is_active else "secondary"
-            if st.button(canale, use_container_width=True, type=button_type, key=f"chan_{canale}"):
+            if st.button(canale, use_container_width=True, type=button_type):
                 st.session_state.current_chat = canale
                 st.rerun()
                 
@@ -199,7 +214,6 @@ if st.session_state.show_sidebar:
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     col_chat = col_rest
-    motore_ai = "Google Gemini (Intelligente)"
     personalita = "Standard (Professionale)"
     lingua = "Italiano"
 
@@ -216,16 +230,9 @@ with col_chat:
 
     def parla_testo(testo):
         if st.session_state.voce_attiva:
-            safe_text = json.dumps(testo)
+            t = testo.replace('"', "'").replace('\n', ' ')
             codice_lingua = {"Italiano": "it-IT", "English": "en-US", "Español": "es-ES", "Français": "fr-FR", "Deutsch": "de-DE"}.get(lingua, "it-IT")
-            st.components.v1.html(f'''
-                <script>
-                    const s = window.speechSynthesis;
-                    const u = new SpeechSynthesisUtterance({safe_text});
-                    u.lang = "{codice_lingua}";
-                    s.speak(u);
-                </script>
-            ''', height=0)
+            st.components.v1.html(f'<script>const s=window.speechSynthesis; const u=new SpeechSynthesisUtterance("{t}"); u.lang="{codice_lingua}"; s.speak(u);</script>', height=0)
 
     st.markdown(f"<h1 class='jarvis-title'>🤖 J.A.R.V.I.S. — [{st.session_state.current_chat}]</h1>", unsafe_allow_html=True)
 
@@ -234,82 +241,76 @@ with col_chat:
     for msg in messaggi:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
-            if msg.get("has_image"):
-                st.image(msg["has_image"], width=250)
+
+    st.markdown("<div class='suggestion-container'></div>", unsafe_allow_html=True)
+    st.caption("💡 Suggerimenti del giorno (clicca per inviare):")
+    col_sug1, col_sug2, col_sug3 = st.columns(3)
+
+    domanda_cliccata = None
+    with col_sug1:
+        if st.button(domande_del_giorno[0], use_container_width=True):
+            domanda_cliccata = domande_del_giorno[0]
+    with col_sug2:
+        if st.button(domande_del_giorno[1], use_container_width=True):
+            domanda_cliccata = domande_del_giorno[1]
+    with col_sug3:
+        if st.button(domande_del_giorno[2], use_container_width=True):
+            domanda_cliccata = domande_del_giorno[2]
 
     col_pop, col_in = st.columns([1, 15])
 
     with col_pop:
         with st.popover("➕", help="Allega immagine"):
-            uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"], key="img_uploader_unique")
+            uploaded_file = st.file_uploader("Seleziona immagine", type=["png", "jpg", "jpeg"])
             if uploaded_file:
                 st.session_state.uploaded_img_bytes = uploaded_file.getvalue()
                 st.image(st.session_state.uploaded_img_bytes, width=150, caption="Pronta")
-            if st.session_state.uploaded_img_bytes is not None:
-                if st.button("Rimuovi Immagine", key="remove_img_btn"):
+                if st.button("Rimuovi"):
                     st.session_state.uploaded_img_bytes = None
                     st.rerun()
 
     with col_in:
-        prompt_utente = st.chat_input("Scrivi un comando...")
+        prompt_digitato = st.chat_input("Scrivi un comando...")
 
-    if prompt_utente:
-        st.session_state.input_pendente = prompt_utente
+    prompt = domanda_cliccata if domanda_cliccata else prompt_digitato
 
-    if st.session_state.input_pendente:
-        testo_da_inviare = st.session_state.input_pendente
-        st.session_state.input_pendente = None 
-        
-        current_img_bytes = st.session_state.uploaded_img_bytes
-        
-        msg_data = {"role": "user", "content": testo_da_inviare}
-        if current_img_bytes:
-            msg_data["has_image"] = current_img_bytes
-        messaggi.append(msg_data)
-        
+    if st.session_state.uploaded_img_bytes:
+        st.info("📎 Immagine allegata e pronta per l'invio.")
+
+    if prompt:
+        messaggi.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
-            st.markdown(testo_da_inviare)
-            if current_img_bytes:
-                st.image(current_img_bytes, width=250)
+            st.markdown(prompt)
+            if st.session_state.uploaded_img_bytes:
+                st.image(st.session_state.uploaded_img_bytes, width=250)
+
+        payload = [{"role": "system", "content": system_content}] + [{"role": m["role"], "content": m["content"]} for m in messaggi]
 
         with st.chat_message("assistant"):
-            with st.spinner("J.A.R.V.I.S. sta elaborando..."):
+            with st.spinner("Elaborazione in corso..."):
                 try:
-                    if "Gemini" in motore_ai:
-                        model = genai.GenerativeModel(
-                            model_name='gemini-1.5-flash',
-                            system_instruction=system_content
-                        )
-                        # Conversione della cronologia nel formato compatibile con Gemini
-                        gemini_history = []
-                        for m in messaggi[:-1]:
-                            role = "user" if m["role"] == "user" else "model"
-                            gemini_history.append({"role": role, "parts": [m["content"]]})
-                        
-                        chat_session = model.start_history_chat(history=gemini_history) if hasattr(model, 'start_history_chat') else model.start_chat(history=gemini_history)
-                        response = chat_session.send_message(testo_da_inviare)
-                        resp = response.text
-
+                    if st.session_state.uploaded_img_bytes:
+                        b64 = base64.b64encode(st.session_state.uploaded_img_bytes).decode()
+                        payload[-1] = {
+                            "role": "user", 
+                            "content": [
+                                {"type": "text", "text": prompt}, 
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                            ]
+                        }
+                        resp = client.chat.completions.create(model="llama-3.2-90b-vision-instruct", messages=payload).choices[0].message.content
                     else:
-                        # Gestione Cohere con inclusione del system prompt e storico
-                        cohere_messages = [{"role": "system", "content": system_content}]
-                        for m in messaggi:
-                            role = "user" if m["role"] == "user" else "assistant"
-                            cohere_messages.append({"role": role, "content": m["content"]})
-                        
-                        response = cohere_client.chat(
-                            model="command-r-plus",
-                            messages=cohere_messages
-                        )
-                        resp = response.message.content[0].text
-
+                        resp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=payload).choices[0].message.content
+                    
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
                     parla_testo(resp)
-                    File "/mount/src/jarvis-ai/jarvis_app.py", line 312
-  
-  ^
-SyntaxError: expected 'except' or 'finally' block
+                except Exception as e:
+                    st.error(f"Errore di sistema: {e}")
+                    
+        st.session_state.uploaded_img_bytes = None
+        st.rerun()
+
 
                 
 
