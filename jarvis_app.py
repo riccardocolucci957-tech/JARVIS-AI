@@ -248,13 +248,13 @@ with col_chat:
 
     domanda_cliccata = None
     with col_sug1:
-        if st.button(domande_del_giorno[0], use_container_width=True):
+        if st.button(domande_del_giorno[0], use_container_width=True, key="sug_0"):
             domanda_cliccata = domande_del_giorno[0]
     with col_sug2:
-        if st.button(domande_del_giorno[1], use_container_width=True):
+        if st.button(domande_del_giorno[1], use_container_width=True, key="sug_1"):
             domanda_cliccata = domande_del_giorno[1]
     with col_sug3:
-        if st.button(domande_del_giorno[2], use_container_width=True):
+        if st.button(domande_del_giorno[2], use_container_width=True, key="sug_2"):
             domanda_cliccata = domande_del_giorno[2]
 
     col_pop, col_in = st.columns([1, 15])
@@ -272,7 +272,8 @@ with col_chat:
     with col_in:
         prompt_digitato = st.chat_input("Scrivi un comando...")
 
-    prompt = domanda_cliccata if domanda_cliccata else prompt_digitato
+    # Gestione priorità input
+    prompt = prompt_digitato if prompt_digitato else domanda_cliccata
 
     if st.session_state.uploaded_img_bytes:
         st.info("📎 Immagine allegata e pronta per l'invio.")
