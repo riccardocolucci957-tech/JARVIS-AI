@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+from groq import Groq
 from datetime import datetime
 from PIL import Image
 import base64
@@ -60,12 +60,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Configurazione Gemini (Modello corretto)
+# Configurazione Groq Client
 try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel('gemini-pro')
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except Exception as e:
-    st.error("⚠️ Configura correttamente GEMINI_API_KEY nei Secrets di Streamlit.")
+    st.error("⚠️ Configura correttamente GROQ_API_KEY nei Secrets di Streamlit.")
     st.stop()
 
 canali_fissi = ["Chat Principale", "Analisi Tecnica", "Codice e Script"]
@@ -173,14 +172,18 @@ with col_chat:
         with st.chat_message("assistant"):
             with st.spinner("J.A.R.V.I.S. sta elaborando..."):
                 try:
-                    chat_history = []
-                    for m in messaggi[:-1]:
-                        role = "user" if m["role"] == "user" else "model"
-                        chat_history.append({"role": role, "parts": [m["content"]]})
+                    # Costruiamo la cronologia dei messaggi per Groq
+                    messages_payload = [{"role": "system", "content": system_instruction}]
+                    for m in messaggi:
+                        messages_payload.append({"role": m["role"], "content": m["content"]})
 
-                    chat = model.start_chat(history=chat_history)
-                    response = chat.send_message(f"{system_instruction}\n\nUtente: {prompt}")
-                    resp = response.text
+                    # Chiamata API ultra-veloce con Llama 3.3
+                    chat_completion = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=messages_payload,
+                        temperature=0.7,
+                    )
+                    resp = chat_completion.choices[0].message.content
                     
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
