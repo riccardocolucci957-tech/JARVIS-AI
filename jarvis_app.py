@@ -2,7 +2,6 @@ import streamlit as st
 from groq import Groq
 from datetime import datetime
 from PIL import Image
-import base64
 import random
 
 # Configurazione della pagina
@@ -60,11 +59,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Configurazione Groq Client
+# Configurazione Groq Client con chiave diretta (funziona subito senza problemi di Secrets)
 try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    API_KEY_GROQ = "gsk_O6zdBJJbinpHxDvUoicWGdyb3FY20SMvMYF7hKCDGrZVgb8YFWp"
+    client = Groq(api_key=API_KEY_GROQ)
 except Exception as e:
-    st.error("⚠️ Configura correttamente GROQ_API_KEY nei Secrets di Streamlit.")
+    st.error(f"⚠️ Errore di inizializzazione client: {e}")
     st.stop()
 
 canali_fissi = ["Chat Principale", "Analisi Tecnica", "Codice e Script"]
@@ -74,8 +74,6 @@ if "current_chat" not in st.session_state:
     st.session_state.current_chat = "Chat Principale"
 if "voce_attiva" not in st.session_state:
     st.session_state.voce_attiva = True
-if "uploaded_img" not in st.session_state:
-    st.session_state.uploaded_img = None
 
 oggi = datetime.now().strftime("%d/%m/%Y")
 giorno_seed = datetime.now().strftime("%Y%m%d")
@@ -172,12 +170,10 @@ with col_chat:
         with st.chat_message("assistant"):
             with st.spinner("J.A.R.V.I.S. sta elaborando..."):
                 try:
-                    # Costruiamo la cronologia dei messaggi per Groq
                     messages_payload = [{"role": "system", "content": system_instruction}]
                     for m in messaggi:
                         messages_payload.append({"role": m["role"], "content": m["content"]})
 
-                    # Chiamata API ultra-veloce con Llama 3.3
                     chat_completion = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=messages_payload,
