@@ -62,8 +62,8 @@ st.markdown("""
 # Configurazione Google Gemini Client tramite i Secrets di Streamlit
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    # Utilizziamo il modello Gemini 1.5 Flash, veloce ed efficiente
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    # Utilizziamo gemini-pro per massima compatibilità e stabilità nelle chat
+    model = genai.GenerativeModel("gemini-pro")
 except Exception as e:
     st.error(f"⚠️ Errore di inizializzazione client Gemini: {e}")
     st.stop()
@@ -102,7 +102,7 @@ with col_btn:
 if st.session_state.show_sidebar:
     col_menu, col_chat = st.columns([2.5, 7.5])
     with col_menu:
-        st.markdown("### ⚙️️ Controllo")
+        st.markdown("### ⚙ Controllo")
         personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
         lingua = st.selectbox("🌐 Lingua", ["Italiano", "English", "Español", "Français", "Deutsch"])
         st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
@@ -173,14 +173,12 @@ with col_chat:
                 try:
                     # Formattazione della cronologia della chat per Gemini
                     gemini_history = []
-                    for m in messaggi[:-1]: # Escludiamo l'ultimo messaggio che inviamo separatamente
+                    for m in messaggi[:-1]: 
                         role = "user" if m["role"] == "user" else "model"
                         gemini_history.append({"role": role, "parts": [m["content"]]})
 
-                    # Avviamo la chat con le istruzioni di sistema (system instruction)
                     chat = model.start_chat(history=gemini_history)
                     
-                    # Inviamo il prompt aggiungendo le istruzioni di sistema nel contesto del messaggio o tramite system_instruction
                     full_prompt = f"[{system_instruction}]\nUser: {prompt}"
                     response = chat.send_message(full_prompt)
                     
