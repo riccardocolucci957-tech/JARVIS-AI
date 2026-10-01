@@ -1,5 +1,5 @@
 import streamlit as st
-from groq import Groq
+import google.generativeai as genai
 from datetime import datetime
 from PIL import Image
 import random
@@ -59,12 +59,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Configurazione Groq Client con la nuova chiave aggiornata
+# Configurazione Google Gemini Client tramite i Secrets di Streamlit
 try:
-    API_KEY_GROQ = "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"
-    client = Groq(api_key=API_KEY_GROQ)
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    # Utilizziamo il modello Gemini 1.5 Flash, veloce ed efficiente
+    model = genai.GenerativeModel("gemini-1.5-flash")
 except Exception as e:
-    st.error(f"⚠️ Errore di inizializzazione client: {e}")
+    st.error(f"⚠️ Errore di inizializzazione client Gemini: {e}")
     st.stop()
 
 canali_fissi = ["Chat Principale", "Analisi Tecnica", "Codice e Script"]
@@ -101,7 +102,7 @@ with col_btn:
 if st.session_state.show_sidebar:
     col_menu, col_chat = st.columns([2.5, 7.5])
     with col_menu:
-        st.markdown("### ⚙️ Controllo")
+        st.markdown("### ⚙️️ Controllo")
         personalita = st.selectbox("Protocollo", ["Standard (Professionale)", "Tony Stark (Sarcastico/Geniale)", "Emergenza (Tattico/Rapido)"])
         lingua = st.selectbox("🌐 Lingua", ["Italiano", "English", "Español", "Français", "Deutsch"])
         st.session_state.voce_attiva = st.toggle("📢 Attiva Voce", value=st.session_state.voce_attiva)
@@ -170,16 +171,20 @@ with col_chat:
         with st.chat_message("assistant"):
             with st.spinner("J.A.R.V.I.S. sta elaborando..."):
                 try:
-                    messages_payload = [{"role": "system", "content": system_instruction}]
-                    for m in messaggi:
-                        messages_payload.append({"role": m["role"], "content": m["content"]})
+                    # Formattazione della cronologia della chat per Gemini
+                    gemini_history = []
+                    for m in messaggi[:-1]: # Escludiamo l'ultimo messaggio che inviamo separatamente
+                        role = "user" if m["role"] == "user" else "model"
+                        gemini_history.append({"role": role, "parts": [m["content"]]})
 
-                    chat_completion = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=messages_payload,
-                        temperature=0.7,
-                    )
-                    resp = chat_completion.choices[0].message.content
+                    # Avviamo la chat con le istruzioni di sistema (system instruction)
+                    chat = model.start_chat(history=gemini_history)
+                    
+                    # Inviamo il prompt aggiungendo le istruzioni di sistema nel contesto del messaggio o tramite system_instruction
+                    full_prompt = f"[{system_instruction}]\nUser: {prompt}"
+                    response = chat.send_message(full_prompt)
+                    
+                    resp = response.text
                     
                     st.markdown(resp)
                     messaggi.append({"role": "assistant", "content": resp})
